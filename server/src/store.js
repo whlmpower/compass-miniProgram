@@ -34,8 +34,6 @@ export function createSession(referencer = 'general') {
     createdAt: Date.now(),
     status: 'collecting', // collecting | reported
     referencer,
-    adEntryUnlocked: false,
-    adDownloadUnlocked: false,
     messages: [],
     report: null,
     postReportTurns: 0,

@@ -1,120 +1,251 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <meta name="theme-color" content="#3b6cff" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>职业罗盘 · 职业自我认知诊断</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Noto+Sans+SC:wght@300;400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/assets/css/tokens.css" />
   <link rel="stylesheet" href="/assets/css/style.css" />
 </head>
 <body>
-  <div id="app">
+<div class="app">
 
-    <!-- ============ 首页 ============ -->
-    <section id="view-home" class="view">
-      <header class="hero">
-        <div class="logo">🧭 职业罗盘</div>
-        <h1>看清你到底想要什么</h1>
-        <p class="sub">不是帮你做选择，而是一面犀利、不回避矛盾的镜子。通过多轮对话，照见你内心的真实驱动力。</p>
-      </header>
+  <!-- ============ 顶部刊头 ============ -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="seal">罗</div>
+      <div>
+        <div class="brand-name">职业罗盘</div>
+        <div class="brand-sub">CAREER&nbsp;COMPASS</div>
+      </div>
+    </div>
+    <nav class="nav">
+      <a href="#" data-go="home" class="hide-sm">首页</a>
+      <a href="#" id="navLogin" data-go="login">登录</a>
+      <a href="#" id="navAdmin" data-go="admin" class="hide-sm" style="display:none;">管理</a>
+    </nav>
+  </header>
 
-      <div class="card">
-        <h3>设计理念</h3>
-        <p>我们不做「你适合大厂 / 国企」的标签式结论。职业罗盘以心理学框架（大五人格、施恩职业锚、施瓦茨价值观、依恋类型、风险容忍度、家庭锚点）为镜，用苏格拉底式提问，帮你把模糊的纠结拆开，看见自己真正在乎的东西。</p>
+  <!-- ============ 视图 1：首页 ============ -->
+  <section class="view" id="view-home">
+    <div class="kicker r" style="--i:0">职业自我认知 · 多参照系诊断</div>
+    <h1 class="hero r" style="--i:1">在选择的路口，<br/>先<span class="accent">认识自己</span>。</h1>
+    <p class="lede r" style="--i:2">不是告诉你该去哪，而是帮你把"大厂、国企、体制内、外企、创业"这几条路，放回你自己的价值观坐标系里，看清真正在拉扯你的东西。</p>
+
+    <div class="sec-head r" style="--i:3"><span class="sec-num">01</span><span class="sec-line"></span><h2>设计理念</h2></div>
+    <p class="body r" style="--i:4"><strong>不做测试，也不给标准答案。</strong>职业罗盘建立在一套明确的分析框架上：六个心理学维度（安全感、成就感、自主、关系、意义、成长）构成你的价值坐标系，六条现实参照系（大厂、国企、体制内、外企、创业、考研／就业）提供对照的镜子。</p>
+    <p class="body r" style="--i:5">诊断的本质，是把"模糊的纠结"翻译成"可看清的结构"——让你看到的，是你自己的处境，而不是别人的建议。</p>
+
+    <div class="sec-head r" style="--i:6"><span class="sec-num">02</span><span class="sec-line"></span><h2>诊断样例</h2></div>
+    <p class="body r" style="--i:7">一份真实的脱敏报告，看看它能带你看到什么。</p>
+    <div class="sample-card r" style="--i:8">
+      <span class="tag">脱敏样例</span>
+      <h3 id="sampleCardTitle">山大班长 · 外企技术 vs 回国企</h3>
+      <div class="meta" id="sampleCardMeta">参照系：外企 / 国企　·　核心矛盾：自主 vs 安稳</div>
+      <ul id="sampleCardPoints">
+        <li>表面在比"薪资与稳定"，深层在比"谁更像我自己"</li>
+        <li>六个维度中，自主与意义严重错位</li>
+        <li>参照系对比显示：回国企缓解焦虑，但放大存在感空洞</li>
+      </ul>
+      <button class="link-btn" id="openSample">阅读完整样例 →</button>
+    </div>
+
+    <div class="sec-head r" style="--i:9"><span class="sec-num">03</span><span class="sec-line"></span><h2>诊断方式</h2></div>
+    <p class="body r" style="--i:10"><strong>它怎么进行：一段对话，不是填表。</strong>你每说一句，下一句提问就跟着你走；大约十几轮、十几分钟，覆盖你的处境与矛盾，结束你会得到一份结构化的诊断报告。</p>
+    <p class="body r" style="--i:11">你写下的每一句，只为你这次诊断存在——<span style="color:var(--indigo)">对话与报告 24 小时后自动消失</span>，不留底稿。</p>
+
+    <div class="sec-head r" style="--i:12"><span class="sec-num">04</span><span class="sec-line"></span><h2>隐私与安全</h2></div>
+    <p class="body r" style="--i:13">我们采集完成诊断所需的必要信息（手机号、对话内容），但坚持"用完即删"：对话与报告 24 小时自动清除，账号密码以哈希存储，不留存明文。<button class="link-btn" id="openPrivacy">查看隐私协议 →</button></p>
+
+    <div class="sec-head r" style="--i:14"><span class="sec-num">05</span><span class="sec-line"></span><h2>怎么开始</h2></div>
+    <p class="body r" style="--i:15">职业罗盘为封闭分发，账号由管理员创建后线下发放。如果你还没有账号，请联系为你提供账号的管理员；登录后，即可开始一次诊断。</p>
+
+    <div class="r mt30" style="--i:16">
+      <button class="btn block" id="startBtn">开始诊断</button>
+    </div>
+
+    <div class="footnote r" style="--i:17">
+      职业罗盘 · 职业自我认知诊断　|　封闭分发 · 账号由管理员发放
+    </div>
+  </section>
+
+  <!-- ============ 视图 2：登录 ============ -->
+  <section class="view" id="view-login">
+    <div class="auth-wrap">
+      <div class="kicker r" style="--i:0">ACCOUNT&nbsp;LOGIN</div>
+      <h1 class="r" style="--i:1">登录</h1>
+      <p class="sub r" style="--i:2">手机号 + 图形验证码 + 密码，三要素验证。</p>
+
+      <div class="field r" style="--i:3">
+        <label>手机号</label>
+        <input id="phone" type="tel" inputmode="numeric" maxlength="11" placeholder="请输入管理员发放的手机号" />
       </div>
 
-      <div class="card">
-        <h3>技术说明</h3>
-        <p>对话由大模型驱动，后端调用国产 OpenAI 兼容 API（DeepSeek / 通义 / GLM），按你输入的上下文实时生成问题与分析。诊断完成后生成一份结构化的《职业自我认知报告》（含伦理声明与危机求助热线）。</p>
+      <div class="field r" style="--i:4">
+        <label>图形验证码</label>
+        <div class="captcha-row">
+          <div class="field">
+            <input id="captchaInput" type="text" maxlength="4" placeholder="输入右图字符" style="text-transform:uppercase" autocomplete="off" />
+          </div>
+          <div class="captcha-box" id="captchaBox" title="点击刷新">
+            <span id="captchaSvg"></span>
+            <span class="refresh">↻</span>
+          </div>
+        </div>
       </div>
 
-      <div class="card warn">
-        <h3>💡 关于费用</h3>
-        <p>每一次诊断都会消耗大模型 Token，有一定算力成本。我们不以现金收费，而是用<b>观看广告</b>来换取服务：</p>
-        <ul>
-          <li>进入诊断前，需观看 <b>10 秒</b>广告解锁；</li>
-          <li>下载 / 查看报告前，需再观看 <b>10 秒</b>广告解锁。</li>
-        </ul>
+      <div class="field r" style="--i:5">
+        <label>密码</label>
+        <input id="password" type="password" maxlength="10" placeholder="10 位账号密码" autocomplete="off" />
       </div>
 
-      <div class="card links">
-        <button class="link-btn" data-go="sample">👀 查看他人诊断样例（脱敏）</button>
-        <button class="link-btn" data-go="privacy">📄 查看隐私协议</button>
-      </div>
+      <div class="err r" style="--i:6" id="loginErr"></div>
 
-      <div class="agree-row">
-        <label class="agree">
-          <input type="checkbox" id="agree" />
-          <span>我已阅读并同意<a href="javascript:;" data-go="privacy">《隐私协议》</a></span>
+      <div class="agree r" style="--i:7">
+        <label class="agree-check" for="agreeChk">
+          <input type="checkbox" id="agreeChk" />
+          <span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.4 L4.8 9 L10 3" fill="none" stroke="#F4F0E7" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
         </label>
-        <button id="startBtn" class="primary" disabled>开始诊断</button>
-        <p class="hint">勾选隐私协议后，先观看 10 秒广告即可进入诊断。</p>
+        <span class="agree-text">我已阅读并同意<a href="#" id="agreePrivacy">《隐私协议》</a></span>
       </div>
-    </section>
 
-    <!-- ============ 隐私协议 ============ -->
-    <section id="view-privacy" class="view hidden">
-      <div class="topbar"><button class="back" data-go="home">← 返回</button><span>隐私协议</span></div>
-      <div class="card doc">
-        <h3>职业罗盘隐私协议（摘要）</h3>
-        <p><b>1. 我们采集什么。</b>仅采集你在本产品中<b>主动输入</b>的对话内容（职业困惑、个人经历、价值观描述等），用于本次职业自我认知诊断，驱动 AI 生成报告。</p>
-        <p><b>2. 广告相关数据采集。</b>本产品含广告（模拟 / 激励视频）。广告 SDK 可能采集设备信息、广告曝光与点击等行为数据，用于广告投放与计费。我们无法控制第三方广告 SDK 的独立数据处理，相关处理遵循其隐私政策。</p>
-        <p><b>3. 数据存储与删除。</b>诊断（报告生成）完成后，你的对话原文与报告文件在服务器端保留 <b>24 小时</b>，期间你可重复查看 / 下载；超过 24 小时系统自动删除，不作长期留存。我们不会把你的诊断内容用于训练或对外提供。</p>
-        <p><b>4. 交易与统计。</b>解锁 / 使用统计仅含次数、时间等聚合数据，不含任何个人诊断内容。</p>
-        <p><b>5. 你的权利。</b>你可随时停止使用；24 小时后数据自动清除。如对数据处理有疑问，可通过产品内联系方式反馈。</p>
-        <p class="muted">本协议为产品内摘要，完整条款以最新版本为准。AI 生成内容不构成职业或心理咨询建议。</p>
+      <button class="btn block r" style="--i:8" id="loginBtn" disabled>登 录</button>
+
+      <p class="auth-note r" style="--i:9">本产品为封闭分发模式，账号与密码由管理员统一创建并线下发放。<br/>同一手机号 24 小时内最多失败 5 次；同一网络 24 小时内最多失败 10 次。</p>
+    </div>
+  </section>
+
+  <!-- ============ 视图 3：Admin 后台 ============ -->
+  <section class="view" id="view-admin">
+    <div class="admin-head">
+      <div>
+        <div class="kicker" style="margin-top:0">ADMIN&nbsp;CONSOLE</div>
+        <h1 style="font-family:var(--serif);font-size:24px;font-weight:600;margin-top:4px;">用户管理</h1>
       </div>
-    </section>
+      <div class="who">当前管理员　<b id="adminPhone">—</b>　·　<a href="#" class="link-btn" id="logoutBtn">退出登录</a></div>
+    </div>
 
-    <!-- ============ 样例报告 ============ -->
-    <section id="view-sample" class="view hidden">
-      <div class="topbar"><button class="back" data-go="home">← 返回</button><span>诊断样例（已脱敏）</span></div>
-      <div class="card doc">
-        <h3>用户「小A」的诊断报告（节选 · 已脱敏）</h3>
-        <p><b>核心驱动力：</b>在不确定中证明自己。关键词：探索者 / 矛盾体 / 证据型思考者。</p>
-        <p><b>关键发现 1：</b>你最大的矛盾是「想要稳定，但恐惧无聊」。你说求稳，但你的高光时刻都发生在跳出舒适区时。</p>
-        <p><b>关键发现 2：</b>你的「自主性」被低估了。你以为自己在意认可，但真正让你 energize 的，是「我自己说了算」。</p>
-        <p><b>雷达图：</b>成就驱动力 80 · 安全需求 50 · 自主性 85 · 社会影响力 55 · 成长速度 80 · 工作生活边界 50。</p>
-        <p><b>下一步建议：</b>给自己一个月「小实验」记录 alive / 麻木时刻；重新定义「稳定」= 拥有选择的权利；接受矛盾，不必现在二选一。</p>
-        <p class="muted">* 此为脱敏示例，真实报告会基于你的专属对话生成，并含完整伦理声明与危机热线。</p>
+    <div class="sec-head"><span class="sec-num">A</span><span class="sec-line"></span><h2>生成账号密码</h2></div>
+    <div class="gen-box">
+      <div class="field">
+        <label>用户手机号</label>
+        <input id="genPhone" type="tel" inputmode="numeric" maxlength="11" placeholder="输入要创建的手机号" />
       </div>
-    </section>
-
-    <!-- ============ 广告页 ============ -->
-    <section id="view-ad" class="view hidden ad-view">
-      <div class="ad-box">
-        <div class="ad-tag">广告</div>
-        <div class="ad-placeholder">
-          <div class="ad-spin"></div>
-          <p id="adText">广告播放中…</p>
+      <button class="btn" id="genBtn">生成密码</button>
+      <div class="pw-out" id="pwOut">
+        <div>
+          <div style="font-size:11px;color:var(--ink-3);letter-spacing:0.1em;">账号密码（24 小时内有效，请线下告知用户）</div>
+          <div class="code" id="pwCode">—</div>
         </div>
-        <div class="ad-count"><span id="adCount">10</span> 秒后可解锁</div>
-        <button id="adSkip" class="ad-skip" disabled>请稍候…</button>
+        <button class="mini-btn" id="copyPw">复制</button>
       </div>
-    </section>
+    </div>
 
-    <!-- ============ 诊断页 ============ -->
-    <section id="view-diagnose" class="view hidden">
-      <div class="topbar">
-        <button class="back" data-go="home">← 退出</button>
-        <span id="diagTitle">职业诊断</span>
-        <span class="turns" id="turnsInfo"></span>
+    <div class="sec-head admin-section"><span class="sec-num">B</span><span class="sec-line"></span><h2>已创建用户</h2></div>
+    <table class="users">
+      <thead>
+        <tr><th>手机号</th><th>状态</th><th>生成时间</th><th>过期</th><th>操作</th></tr>
+      </thead>
+      <tbody id="userRows"></tbody>
+    </table>
+
+    <div class="sec-head admin-section"><span class="sec-num">C</span><span class="sec-line"></span><h2>修改管理员密码</h2></div>
+    <div class="gen-box">
+      <div class="field">
+        <label>旧密码</label>
+        <input id="oldPwd" type="password" autocomplete="off" placeholder="管理员当前密码" />
       </div>
-
-      <div id="chat" class="chat"></div>
-
-      <div id="composer" class="composer">
-        <textarea id="input" maxlength="5000" placeholder="输入你的想法、经历或纠结…（单轮最多 5000 字）"></textarea>
-        <div class="composer-row">
-          <span id="count" class="count">0 / 5000</span>
-          <button id="sendBtn" class="primary small">发送</button>
-        </div>
+      <div class="field">
+        <label>新密码</label>
+        <input id="newPwd" type="password" autocomplete="off" placeholder="设置新的管理员密码" />
       </div>
+      <button class="btn" id="changePwBtn">更新密码</button>
+      <div class="err" id="pwErr"></div>
+    </div>
+    <div class="footnote">密码有效期为登录成功后 24 小时；过期后由管理员对该手机号重新生成覆盖。失败计数：同手机号 24h≤5 次、同 IP 24h≤10 次。</div>
+  </section>
 
-      <div id="reportZone" class="report-zone"></div>
-    </section>
+  <!-- ============ 视图 4：诊断对话 ============ -->
+  <section class="view" id="view-chat">
+    <div class="chat-top">
+      <div>
+        <div class="title">职业诊断对话</div>
+        <div class="phase" id="phaseLabel">诊断进行中</div>
+      </div>
+      <a href="#" class="link-btn" data-go="home">退出</a>
+    </div>
+    <div id="phaseTagWrap" style="margin:10px 0 0;"></div>
 
+    <div class="msgs" id="msgs"></div>
+
+    <div class="composer">
+      <div class="counter" id="counter">0 / 5000</div>
+      <textarea class="ta" id="ta" placeholder="写下你的回答（每轮最多 5000 字）…"></textarea>
+      <div class="composer-row" id="composerRow">
+        <button class="btn ghost" id="genReportBtn" style="display:none;">生成报告</button>
+        <button class="btn ghost" id="reportBtn" style="display:none;">查看报告</button>
+        <div class="spacer"></div>
+        <button class="btn" id="sendBtn">发送</button>
+      </div>
+      <div id="lockedWrap" style="display:none;">
+        <div class="locked-note">本账号追问轮次已用尽（共 10 轮）。报告可在 24 小时内重复查看与下载，超时将自动删除。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 视图 5：报告预览 ============ -->
+  <section class="view" id="view-report">
+    <div class="chat-top">
+      <div class="title">诊断报告</div>
+      <a href="#" class="link-btn" data-go="chat">返回对话</a>
+    </div>
+    <p class="report-intro">报告生成后保留 24 小时供重复查看与下载，超时服务端自动删除。下方为你的专属报告。</p>
+    <iframe id="reportFrame" title="诊断报告" sandbox="allow-scripts allow-same-origin"></iframe>
+    <div class="composer-row mt20">
+      <button class="btn" id="openNew">新窗口打开 / 下载（PDF）</button>
+    </div>
+    <div class="footnote">本报告由对话生成，仅用于自我认知参考，不构成职业决策建议。</div>
+  </section>
+
+</div>
+
+<!-- 隐私协议弹层 -->
+<div class="modal-mask" id="privacyMask">
+  <div class="modal">
+    <button class="close" id="closePrivacy">×</button>
+    <h3>隐私协议</h3>
+    <p style="color:var(--ink-3);font-size:12px;">最后更新：2026-08-23　·　封闭分发版</p>
+    <h4>一、我们采集什么</h4>
+    <p>为完成诊断，我们收集：① 账号信息（手机号、密码哈希）；② 你在对话中主动输入的职业背景与想法；③ 诊断完成后生成的报告。</p>
+    <h4>二、我们怎么用</h4>
+    <p>仅用于驱动本次诊断对话与生成报告。我们不出售、不共享任何个人数据。</p>
+    <h4>三、我们怎么保护</h4>
+    <p>密码以哈希形式存储，服务端不留存明文。对话与报告存放于服务端，<strong style="color:var(--indigo)">自生成之时起 24 小时后自动删除</strong>。</p>
+    <h4>四、账号有效期</h4>
+    <p>用户密码在登录成功后 24 小时自动失效；管理员账号长期有效。登录失败受滑动窗口限流保护。</p>
+    <h4>五、你的权利</h4>
+    <p>你可随时要求删除本账号相关数据。本产品不含任何形式的广告，亦不接入广告 SDK，故不涉及广告数据采集。</p>
   </div>
-  <script src="/assets/js/app.js"></script>
+</div>
+
+<!-- 样例弹层 -->
+<div class="modal-mask" id="sampleMask">
+  <div class="modal">
+    <button class="close" id="closeSample">×</button>
+    <h3 id="sampleModalTitle">山大班长 · 完整脱敏样例（节选）</h3>
+    <p id="sampleModalMeta" style="color:var(--ink-3);font-size:12px;">外企技术 5 年，父母希望回国企，自己不甘心。</p>
+    <h4>对话节选</h4>
+    <div id="sampleModalDialogue"></div>
+    <h4>诊断结论（节选）</h4>
+    <div id="sampleModalConclusion"></div>
+    <div class="mt20"><button class="btn" id="sampleStartBtn">我也要做一次 →</button></div>
+  </div>
+</div>
+
+<script type="module" src="/assets/js/api.js"></script>
+<script type="module" src="/assets/js/app.js"></script>
 </body>
 </html>

@@ -25,8 +25,23 @@ export const config = {
   maxInputChars: Number(process.env.MAX_INPUT_CHARS || 5000),
   postReportTurns: Number(process.env.POST_REPORT_TURNS || 10),
   reportTtlHours: Number(process.env.REPORT_TTL_HOURS || 24),
-  adDurationSec: Number(process.env.AD_DURATION_SEC || 10),
   abandonTtlDays: Number(process.env.ABANDON_TTL_DAYS || 3),
+
+  // 鉴权（v2）
+  jwtSecret: process.env.JWT_SECRET || 'dev_insecure_secret_change_me',
+  jwtExpiresHours: Number(process.env.JWT_EXPIRES_HOURS || 24),
+  adminPhone: process.env.ADMIN_PHONE || '',
+  adminPassword: process.env.ADMIN_PASSWORD || '',
+  userPwdTtlHours: Number(process.env.USER_PWD_TTL_HOURS || 24),
+
+  // 限流（v2）
+  ratePhoneMax: Number(process.env.RATE_PHONE_MAX || 5),
+  rateIpMax: Number(process.env.RATE_IP_MAX || 10),
+  rateWindowHours: Number(process.env.RATE_WINDOW_HOURS || 24),
+
+  // 文件路径
+  usersFile: path.join(ROOT, 'data', 'users.json'),
+  ratelimitFile: path.join(ROOT, 'data', 'ratelimit.json'),
 };
 
 // 仅当显式开启 LLM_MOCK 时才进入演示兜底模式；否则一律走真实大模型
