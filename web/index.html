@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#3b6cff" />
+  <title>职业罗盘 · 职业自我认知诊断</title>
+  <link rel="stylesheet" href="/assets/css/style.css" />
+</head>
+<body>
+  <div id="app">
+
+    <!-- ============ 首页 ============ -->
+    <section id="view-home" class="view">
+      <header class="hero">
+        <div class="logo">🧭 职业罗盘</div>
+        <h1>看清你到底想要什么</h1>
+        <p class="sub">不是帮你做选择，而是一面犀利、不回避矛盾的镜子。通过多轮对话，照见你内心的真实驱动力。</p>
+      </header>
+
+      <div class="card">
+        <h3>设计理念</h3>
+        <p>我们不做「你适合大厂 / 国企」的标签式结论。职业罗盘以心理学框架（大五人格、施恩职业锚、施瓦茨价值观、依恋类型、风险容忍度、家庭锚点）为镜，用苏格拉底式提问，帮你把模糊的纠结拆开，看见自己真正在乎的东西。</p>
+      </div>
+
+      <div class="card">
+        <h3>技术说明</h3>
+        <p>对话由大模型驱动，后端调用国产 OpenAI 兼容 API（DeepSeek / 通义 / GLM），按你输入的上下文实时生成问题与分析。诊断完成后生成一份结构化的《职业自我认知报告》（含伦理声明与危机求助热线）。</p>
+      </div>
+
+      <div class="card warn">
+        <h3>💡 关于费用</h3>
+        <p>每一次诊断都会消耗大模型 Token，有一定算力成本。我们不以现金收费，而是用<b>观看广告</b>来换取服务：</p>
+        <ul>
+          <li>进入诊断前，需观看 <b>10 秒</b>广告解锁；</li>
+          <li>下载 / 查看报告前，需再观看 <b>10 秒</b>广告解锁。</li>
+        </ul>
+      </div>
+
+      <div class="card links">
+        <button class="link-btn" data-go="sample">👀 查看他人诊断样例（脱敏）</button>
+        <button class="link-btn" data-go="privacy">📄 查看隐私协议</button>
+      </div>
+
+      <div class="agree-row">
+        <label class="agree">
+          <input type="checkbox" id="agree" />
+          <span>我已阅读并同意<a href="javascript:;" data-go="privacy">《隐私协议》</a></span>
+        </label>
+        <button id="startBtn" class="primary" disabled>开始诊断</button>
+        <p class="hint">勾选隐私协议后，先观看 10 秒广告即可进入诊断。</p>
+      </div>
+    </section>
+
+    <!-- ============ 隐私协议 ============ -->
+    <section id="view-privacy" class="view hidden">
+      <div class="topbar"><button class="back" data-go="home">← 返回</button><span>隐私协议</span></div>
+      <div class="card doc">
+        <h3>职业罗盘隐私协议（摘要）</h3>
+        <p><b>1. 我们采集什么。</b>仅采集你在本产品中<b>主动输入</b>的对话内容（职业困惑、个人经历、价值观描述等），用于本次职业自我认知诊断，驱动 AI 生成报告。</p>
+        <p><b>2. 广告相关数据采集。</b>本产品含广告（模拟 / 激励视频）。广告 SDK 可能采集设备信息、广告曝光与点击等行为数据，用于广告投放与计费。我们无法控制第三方广告 SDK 的独立数据处理，相关处理遵循其隐私政策。</p>
+        <p><b>3. 数据存储与删除。</b>诊断（报告生成）完成后，你的对话原文与报告文件在服务器端保留 <b>24 小时</b>，期间你可重复查看 / 下载；超过 24 小时系统自动删除，不作长期留存。我们不会把你的诊断内容用于训练或对外提供。</p>
+        <p><b>4. 交易与统计。</b>解锁 / 使用统计仅含次数、时间等聚合数据，不含任何个人诊断内容。</p>
+        <p><b>5. 你的权利。</b>你可随时停止使用；24 小时后数据自动清除。如对数据处理有疑问，可通过产品内联系方式反馈。</p>
+        <p class="muted">本协议为产品内摘要，完整条款以最新版本为准。AI 生成内容不构成职业或心理咨询建议。</p>
+      </div>
+    </section>
+
+    <!-- ============ 样例报告 ============ -->
+    <section id="view-sample" class="view hidden">
+      <div class="topbar"><button class="back" data-go="home">← 返回</button><span>诊断样例（已脱敏）</span></div>
+      <div class="card doc">
+        <h3>用户「小A」的诊断报告（节选 · 已脱敏）</h3>
+        <p><b>核心驱动力：</b>在不确定中证明自己。关键词：探索者 / 矛盾体 / 证据型思考者。</p>
+        <p><b>关键发现 1：</b>你最大的矛盾是「想要稳定，但恐惧无聊」。你说求稳，但你的高光时刻都发生在跳出舒适区时。</p>
+        <p><b>关键发现 2：</b>你的「自主性」被低估了。你以为自己在意认可，但真正让你 energize 的，是「我自己说了算」。</p>
+        <p><b>雷达图：</b>成就驱动力 80 · 安全需求 50 · 自主性 85 · 社会影响力 55 · 成长速度 80 · 工作生活边界 50。</p>
+        <p><b>下一步建议：</b>给自己一个月「小实验」记录 alive / 麻木时刻；重新定义「稳定」= 拥有选择的权利；接受矛盾，不必现在二选一。</p>
+        <p class="muted">* 此为脱敏示例，真实报告会基于你的专属对话生成，并含完整伦理声明与危机热线。</p>
+      </div>
+    </section>
+
+    <!-- ============ 广告页 ============ -->
+    <section id="view-ad" class="view hidden ad-view">
+      <div class="ad-box">
+        <div class="ad-tag">广告</div>
+        <div class="ad-placeholder">
+          <div class="ad-spin"></div>
+          <p id="adText">广告播放中…</p>
+        </div>
+        <div class="ad-count"><span id="adCount">10</span> 秒后可解锁</div>
+        <button id="adSkip" class="ad-skip" disabled>请稍候…</button>
+      </div>
+    </section>
+
+    <!-- ============ 诊断页 ============ -->
+    <section id="view-diagnose" class="view hidden">
+      <div class="topbar">
+        <button class="back" data-go="home">← 退出</button>
+        <span id="diagTitle">职业诊断</span>
+        <span class="turns" id="turnsInfo"></span>
+      </div>
+
+      <div id="chat" class="chat"></div>
+
+      <div id="composer" class="composer">
+        <textarea id="input" maxlength="5000" placeholder="输入你的想法、经历或纠结…（单轮最多 5000 字）"></textarea>
+        <div class="composer-row">
+          <span id="count" class="count">0 / 5000</span>
+          <button id="sendBtn" class="primary small">发送</button>
+        </div>
+      </div>
+
+      <div id="reportZone" class="report-zone"></div>
+    </section>
+
+  </div>
+  <script src="/assets/js/app.js"></script>
+</body>
+</html>

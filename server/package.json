@@ -1,0 +1,15 @@
+{
+  "name": "hemo-career-compass-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "职业罗盘 H5 后端：驱动职业自我认知诊断对话、生成可下载报告",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2"
+  }
+}
