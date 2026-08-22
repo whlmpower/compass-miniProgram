@@ -10,6 +10,9 @@ export async function chat(
 }
 
 async function openaiChat(systemPrompt, history, temperature, extraSystem) {
+  if (!config.llmApiKey) {
+    throw new Error('未配置 LLM_API_KEY，且未开启 LLM_MOCK，无法调用真实大模型');
+  }
   const sysContent = extraSystem ? `${systemPrompt}\n\n${extraSystem}` : systemPrompt;
   const resp = await fetch(`${config.llmBaseUrl}/chat/completions`, {
     method: 'POST',

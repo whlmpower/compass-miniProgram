@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import 'dotenv/config';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
@@ -12,11 +13,13 @@ export const config = {
   sessionsDir: path.join(ROOT, 'data', 'sessions'),
   reportsDir: path.join(ROOT, 'data', 'reports'),
 
-  // LLM（OpenAI 兼容接口，默认 DeepSeek）
+  // LLM（OpenAI 兼容接口，默认 StepFun 阶跃星辰）
   llmApiKey: process.env.LLM_API_KEY || '',
-  llmBaseUrl: process.env.LLM_BASE_URL || 'https://api.deepseek.com/v1',
-  llmModel: process.env.LLM_MODEL || 'deepseek-chat',
+  llmBaseUrl: process.env.LLM_BASE_URL || 'https://api.stepfun.com/v1',
+  llmModel: process.env.LLM_MODEL || 'step-3.7-flash',
   llmTemperature: Number(process.env.LLM_TEMPERATURE || 0.8),
+  // 仅在显式设置 LLM_MOCK=true 时启用演示兜底；默认走真实大模型（对话无须 mock）
+  llmMock: process.env.LLM_MOCK === 'true',
 
   // 业务规则
   maxInputChars: Number(process.env.MAX_INPUT_CHARS || 5000),
@@ -26,5 +29,5 @@ export const config = {
   abandonTtlDays: Number(process.env.ABANDON_TTL_DAYS || 3),
 };
 
-// 未配置 API Key 时自动进入 mock 模式（无需联网即可演示完整流程）
-export const isMock = () => !config.llmApiKey;
+// 仅当显式开启 LLM_MOCK 时才进入演示兜底模式；否则一律走真实大模型
+export const isMock = () => config.llmMock;

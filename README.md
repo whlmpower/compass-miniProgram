@@ -27,7 +27,7 @@
 
 - **前端**：原生 H5（HTML/CSS/JS 单页），移动端优先，无构建步骤。
 - **后端**：Node.js + Express，负责会话状态、调用大模型 API、报告生成、广告解锁状态、数据清理。
-- **大模型**：国产 OpenAI 兼容 API（DeepSeek / 通义 / GLM）。无 API Key 时自动进入 **mock 模式**，可完整体验流程。
+- **大模型**：**StepFun 阶跃星辰**（默认 `step-3.7-flash`，OpenAI 兼容 `/chat/completions`）。默认走真实模型；设置 `LLM_MOCK=true` 时启用内置演示兜底（无需联网）。
 - **Skill 提示词**：`server/skill/` 下复制自 `hemo-career-compass`（prompts / frameworks / referencers / references / research），运行时拼接为 system prompt 喂给模型；报告阶段按需注入用户所选参照系的事实依据。
 
 ## 目录结构
@@ -39,7 +39,7 @@ hemo-career-compass-program/
 │   │   ├── index.js         # Express 路由入口
 │   │   ├── config.js        # 配置（端口/大模型/业务规则）
 │   │   ├── skillLoader.js   # 拼接 system prompt + 报告指令
-│   │   ├── llm.js           # LLM 调用（mock + OpenAI 兼容真实模式）
+│   │   ├── llm.js           # LLM 调用（StepFun 真实优先，mock 仅兜底）
 │   │   ├── store.js         # 会话存储（JSON 文件）+ 24h 清理
 │   │   └── report.js        # Markdown → HTML（含打印样式）
 │   ├── skill/               # 复制自 hemo-career-compass 的提示词
@@ -55,25 +55,27 @@ hemo-career-compass-program/
 ```bash
 cd server
 npm install
-npm start            # 默认 http://localhost:3001 （mock 模式，无需 API Key）
+npm start            # 默认 http://localhost:3001 （读取 server/.env，真实大模型已启用）
 ```
 
-浏览器打开 `http://localhost:3001` 即可体验完整流程（mock 模式下的对话为演示话术，报告为示例结构）。
+浏览器打开 `http://localhost:3001` 即可体验完整流程（对话由 StepFun 真实大模型驱动）。
 
-## 接入真实大模型
+## 大模型配置（StepFun 阶跃星辰）
 
-设置环境变量后重启即可切换为真实模型（去掉 mock）：
+密钥与模型参数通过 `server/.env`（已 gitignore）注入，由 `dotenv` 自动加载。复制 `server/.env.example` 为 `server/.env` 并填入你的 Key 即可：
 
 ```bash
-export LLM_API_KEY=sk-xxxx          # 必填，有则自动启用真实模式
-export LLM_BASE_URL=https://api.deepseek.com/v1   # 默认 DeepSeek
-export LLM_MODEL=deepseek-chat      # 或通义 qwen-plus / GLM 等
+# server/.env
+LLM_API_KEY=你的_stepfun_key          # 必填，获取：https://platform.stepfun.com/interface-key
+LLM_BASE_URL=https://api.stepfun.com/v1
+LLM_MODEL=step-3.7-flash             # 默认快模型；可换 step-1 / step-2 等更强模型
+LLM_TEMPERATURE=0.8
+LLM_MOCK=false                       # true=演示兜底（无需联网）；默认 false=真实大模型
 # 可选
-export PORT=3001
-export MAX_INPUT_CHARS=5000         # 单轮输入上限
-export POST_REPORT_TURNS=10         # 报告后追问轮次上限
-export REPORT_TTL_HOURS=24          # 报告留存时长，超时自动删除
-export AD_DURATION_SEC=10           # 广告闸门时长（秒）
+PORT=3001
+MAX_INPUT_CHARS=5000                 # 单轮输入上限
+POST_REPORT_TURNS=10                 # 报告后追问轮次上限
+REPORT_TTL_HOURS=24                  # 报告留存时长，超时自动删除
 ```
 
 ## 业务规则（已落地）
@@ -92,6 +94,6 @@ export AD_DURATION_SEC=10           # 广告闸门时长（秒）
 
 ## 成本参考
 
-- 大模型调用约 ¥0.01–0.02 / 次诊断（DeepSeek 低价模型 + 提示词缓存后更低）。
+- 大模型调用约 ¥0.01–0.02 / 次诊断（StepFun `step-3.7-flash` + 提示词缓存后更低）。
 - 固定成本：域名 ¥50–100/年 + 轻量服务器/Serverless（近乎免费起）。
 - 变现前置：个人号不能接广告/支付；需个体户主体 + 流量主 UV≥1000 门槛。
