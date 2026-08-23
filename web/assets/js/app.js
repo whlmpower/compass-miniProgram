@@ -377,19 +377,34 @@ async function downloadConversation() {
     alert('暂无可下载的报告文件，请先回复是否需要整理对话');
     return;
   }
-  const { res } = await api.get(`/api/session/${state.sessionId}/conversation/download`);
-  if (!res.ok) {
-    const { data } = await res.json().catch(() => ({ data: {} }));
-    alert(data?.error || '报告获取失败');
-    return;
-  }
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
+  const url = `/api/session/${state.sessionId}/conversation/download`;
+  // 优先：同域直接链接下载（在用户点击手势内触发，浏览器原生处理下载，最稳）
   const a = document.createElement('a');
   a.href = url;
   a.download = `职业诊断对话记录_${state.sessionId}.html`;
+  a.style.display = 'none';
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  document.body.removeChild(a);
+  // 兜底：极少数浏览器拦截程序化下载时，回退到 fetch+blob 方式
+  setTimeout(async () => {
+    try {
+      const { res } = await api.get(url);
+      if (!res.ok) return;
+      const blob = await res.blob();
+      if (!blob || blob.size === 0) return;
+      const bUrl = URL.createObjectURL(blob);
+      const b = document.createElement('a');
+      b.href = bUrl;
+      b.download = a.download;
+      document.body.appendChild(b);
+      b.click();
+      document.body.removeChild(b);
+      setTimeout(() => URL.revokeObjectURL(bUrl), 60000);
+    } catch {
+      /* 兜底失败静默，主流程已尝试直接下载 */
+    }
+  }, 800);
 }
 
 // 报告页预览：优先展示「报告正文」（报告已生成即可看，不依赖对话整理 HTML）。
