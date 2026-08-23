@@ -166,8 +166,11 @@ export { resolvePostReportReply };
 
 // 把「到报告生成为止」的对话渲染为 HTML 并落盘，记录路径
 function generateConversation(s) {
-  if (!s.report) return false;
+  // 前置守卫：无报告、无手机号、无有效消息 —— 拒绝生成，避免产出空壳文件污染下载
+  if (!s.report || !s.report.markdown) return false;
+  if (!s.phone || s.phone === '用户') return false;
   const preReport = s.messages.filter((m) => (m.ts || 0) <= s.report.generatedAt);
+  if (preReport.length === 0) return false;
   const blocks = [
     ...preReport,
     { role: 'assistant', content: s.report.markdown, isReport: true },
@@ -424,6 +427,14 @@ app.get('/api/session/:id/conversation/download', requireAuth, (req, res) => {
   if (!assertOwner(req, s, res)) return;
   if (!s.conversationReady || !s.conversationFile) {
     return res.status(404).json({ error: '暂无可下载的报告文件，请先回复是否需要整理对话' });
+  }
+  // 守卫：只发送真实存在、非空的文件，避免把历史残留/空壳文件当成报告下载
+  if (
+    !fs.existsSync(s.conversationFile) ||
+    !fs.statSync(s.conversationFile).isFile() ||
+    fs.statSync(s.conversationFile).size < 500
+  ) {
+    return res.status(404).json({ error: '报告文件已失效，请重新回复「需要」以生成' });
   }
   const fileName = path.basename(s.conversationFile);
   res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);

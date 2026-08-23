@@ -18,6 +18,11 @@ function loadAll() {
       if (!f.endsWith('.json')) continue;
       try {
         const s = JSON.parse(fs.readFileSync(path.join(config.sessionsDir, f), 'utf8'));
+        // 跳过无 id / id 非法的脏数据，避免 undefined 等会话污染内存并指向空壳文件
+        if (!s || typeof s.id !== 'string' || s.id.length < 8) {
+          fs.unlinkSync(path.join(config.sessionsDir, f));
+          continue;
+        }
         sessions.set(s.id, s);
       } catch {
         /* corrupt file, ignore */
