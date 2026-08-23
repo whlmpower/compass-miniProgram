@@ -202,12 +202,12 @@
       <textarea class="ta" id="ta" placeholder="写下你的回答（每轮最多 5000 字）…"></textarea>
       <div class="composer-row" id="composerRow">
         <button class="btn ghost" id="genReportBtn" style="display:none;">生成报告</button>
-        <button class="btn ghost" id="reportBtn" style="display:none;">查看报告</button>
+        <button class="btn ghost" id="reportBtn" style="display:none;">下载报告</button>
         <div class="spacer"></div>
         <button class="btn" id="sendBtn">发送</button>
       </div>
       <div id="lockedWrap" style="display:none;">
-        <div class="locked-note">本账号追问轮次已用尽（共 10 轮）。报告可在 24 小时内重复查看与下载，超时将自动删除。</div>
+        <div class="locked-note">本账号追问轮次已用尽（共 10 轮）。报告生成后 24 小时内可下载，超时将自动删除。</div>
       </div>
     </div>
   </section>
@@ -218,12 +218,15 @@
       <div class="title">诊断报告</div>
       <a href="#" class="link-btn" data-go="chat">返回对话</a>
     </div>
-    <p class="report-intro">报告生成后保留 24 小时供重复查看与下载，超时服务端自动删除。下方为你的专属报告。</p>
+    <p class="report-intro">报告生成后保留 24 小时供重复查看与下载，超时服务端自动删除。下方为你的专属对话记录（含报告）。</p>
+    <div id="reportTip" class="report-tip" style="display:none;">
+      暂无可下载的报告文件，请先在对话中回复是否需要整理对话。生成后可在本页或对话页「下载报告」获取。
+    </div>
     <iframe id="reportFrame" title="诊断报告" sandbox="allow-scripts allow-same-origin"></iframe>
     <div class="composer-row mt20">
-      <button class="btn" id="openNew">新窗口打开 / 下载（PDF）</button>
+      <button class="btn" id="openNew">下载报告</button>
     </div>
-    <div class="footnote">本报告由对话生成，仅用于自我认知参考，不构成职业决策建议。</div>
+    <div class="footnote">本记录由对话生成，仅用于自我认知参考，不构成职业决策建议。下载后 24 小时自动删除。</div>
   </section>
 
 </div>

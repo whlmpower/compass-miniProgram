@@ -1,16 +1,19 @@
 import express from 'express';
 import cors from 'cors';
 import path from 'node:path';
+import fs from 'node:fs';
 import { config, isMock } from './config.js';
 import { buildSystemPrompt, buildReportInstruction, listReferencers } from './skillLoader.js';
 import { chat, mockReport } from './llm.js';
 import { renderReportHtml } from './report.js';
+import { renderConversationHtml, buildConversationFileName } from './conversation.js';
 import {
   createSession,
   getSession,
   getLatestValidSessionForPhone,
   addMessage,
   setReport,
+  setConversation,
   persist,
 } from './store.js';
 import {
@@ -83,6 +86,39 @@ function publicConfig() {
     mock: isMock(),
     referencers: listReferencers(),
   };
+}
+
+// 报告生成后，AI 在对话框内追加的追问（用户语义判断「需要/不用」）
+const CONVERSATION_FOLLOWUP =
+  '已为你生成上面的诊断报告。需要我把本次完整对话（含这份报告）整理成一份 HTML 文件，供你下载保存吗？回复「需要」即可生成，回复「不用」则跳过。';
+
+// 用户回复意图识别：是否需要整理对话为 HTML（后端关键词兜底，确定性触发）
+function wantsConversation(text) {
+  return /(需要|要下载|下载|整理|打包|导出|保存|生成文件|给我文件)/.test(text);
+}
+function refusesConversation(text) {
+  return /(不用|不需要|跳过|算了|暂时不|暂不需要)/.test(text);
+}
+
+// 把「到报告生成为止」的对话渲染为 HTML 并落盘，记录路径
+function generateConversation(s) {
+  if (!s.report) return false;
+  const preReport = s.messages.filter((m) => (m.ts || 0) <= s.report.generatedAt);
+  const blocks = [
+    ...preReport,
+    { role: 'assistant', content: s.report.markdown, isReport: true },
+  ];
+  const html = renderConversationHtml({
+    phone: s.phone,
+    referencer: s.referencer,
+    messages: blocks,
+    generatedAt: s.report.generatedAt,
+  });
+  const fileName = buildConversationFileName(s.phone);
+  const filePath = path.join(config.conversationsDir, fileName);
+  fs.writeFileSync(filePath, html, { mode: 0o600 });
+  setConversation(s, filePath);
+  return true;
 }
 
 app.get('/api/config', (req, res) => {
@@ -206,6 +242,7 @@ app.get('/api/sessions/mine', requireAuth, (req, res) => {
       status: s.status,
       referencer: s.referencer,
       reportReady: !!s.report,
+      conversationReady: !!s.conversationReady,
       messageCount: s.messages.length,
     },
   });
@@ -234,6 +271,7 @@ app.get('/api/session/:id', requireAuth, (req, res) => {
     postReportTurnsLeft: Math.max(0, config.postReportTurns - s.postReportTurns),
     referencer: s.referencer,
     reportReady: !!s.report,
+    conversationReady: !!s.conversationReady,
     messageCount: s.messages.length,
     messages: s.messages,
   });
@@ -262,12 +300,23 @@ app.post('/api/session/:id/message', requireAuth, async (req, res) => {
         : '';
     const reply = await chat(sysPrompt, s.messages, { extraSystem });
     addMessage(s, 'assistant', reply);
+
+    // 报告已生成、对话 HTML 尚未生成时：识别用户是否要整理下载
+    let conversationJustReady = false;
+    if (s.status === 'reported' && !s.conversationReady) {
+      if (wantsConversation(content)) {
+        if (generateConversation(s)) conversationJustReady = true;
+      }
+    }
+
     if (s.status === 'reported') {
       s.postReportTurns += 1;
       persist(s);
     }
     res.json({
       reply,
+      conversationReady: !!s.conversationReady,
+      conversationJustReady,
       postReportTurnsLeft: Math.max(0, config.postReportTurns - s.postReportTurns),
     });
   } catch (e) {
@@ -292,20 +341,26 @@ app.post('/api/session/:id/report', requireAuth, async (req, res) => {
       markdown = await chat(sysPrompt, s.messages, { extraSystem: instruction, temperature: 0.6 });
     }
     const html = renderReportHtml(markdown);
-    setReport(s, markdown, html);
-    res.json({ reportHtml: html, reportMarkdown: markdown });
+    setReport(s, markdown);
+    // 报告生成后，AI 在对话框内追加追问：是否需要整理对话为 HTML 下载
+    addMessage(s, 'assistant', CONVERSATION_FOLLOWUP);
+    res.json({ reportHtml: html, reportMarkdown: markdown, followup: CONVERSATION_FOLLOWUP });
   } catch (e) {
     res.status(502).json({ error: `报告生成失败：${e.message || e}` });
   }
 });
 
-// 下载报告（v2 已移除广告闸门，登录用户直接下载）
-app.get('/api/session/:id/report/download', requireAuth, (req, res) => {
+// 下载「对话整理 HTML」（替换原报告 HTML 下载；需登录 + 会话归属）
+app.get('/api/session/:id/conversation/download', requireAuth, (req, res) => {
   const s = getSession(req.params.id);
   if (!s) return res.status(404).json({ error: '会话不存在' });
   if (!assertOwner(req, s, res)) return;
-  if (!s.report) return res.status(404).json({ error: '报告尚未生成' });
-  res.sendFile(path.join(config.reportsDir, `${s.id}.html`));
+  if (!s.conversationReady || !s.conversationFile) {
+    return res.status(404).json({ error: '暂无可下载的报告文件，请先回复是否需要整理对话' });
+  }
+  const fileName = path.basename(s.conversationFile);
+  res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
+  res.sendFile(s.conversationFile);
 });
 
 // 仅当作为主模块直接运行时监听（测试时由测试框架导入 app，不自动监听）

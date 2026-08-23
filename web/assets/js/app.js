@@ -8,6 +8,7 @@ const state = {
   meta: null,
   messages: [],
   reportReady: false,
+  conversationReady: false,
 };
 let captchaId = '';
 
@@ -78,6 +79,7 @@ async function getMine() {
 function applyMeta(meta) {
   state.meta = meta;
   state.reportReady = !!meta.reportReady;
+  state.conversationReady = !!meta.conversationReady;
   state.messages = (meta.messages || []).map((m) => ({ role: m.role, content: m.content }));
 }
 
@@ -121,6 +123,7 @@ async function ensureSession({ autoCreate = true } = {}) {
   state.messages = [{ role: 'assistant', content: data.greeting }];
   state.meta = await getMeta();
   state.reportReady = false;
+  state.conversationReady = false;
   return true;
 }
 
@@ -142,6 +145,7 @@ async function startNewSession() {
   state.messages = [{ role: 'assistant', content: data.greeting }];
   state.meta = await getMeta();
   state.reportReady = false;
+  state.conversationReady = false;
   go('chat');
   window.scrollTo(0, 0);
 }
@@ -307,6 +311,7 @@ async function sendMessage() {
   appendMsgEl('ai', data.reply);
   if (state.meta && state.meta.status === 'reported') {
     state.meta.postReportTurnsLeft = data.postReportTurnsLeft;
+    if (data.conversationReady) state.conversationReady = true;
     renderChatPhase();
   }
 }
@@ -322,20 +327,49 @@ async function generateReport() {
     return;
   }
   state.reportReady = true;
+  state.conversationReady = false;
   state.meta = await getMeta();
+  // 报告生成后，后端会在对话流追加追问；把追问消息也展示出来
+  if (data.followup) {
+    state.messages.push({ role: 'assistant', content: data.followup });
+    appendMsgEl('ai', data.followup);
+  }
   await loadReport();
   go('report');
 }
 
-$('reportBtn').addEventListener('click', async () => {
-  await loadReport();
-  go('report');
-});
+// 对话页「下载报告」：直接触发对话整理 HTML 下载；未生成则提示
+$('reportBtn').addEventListener('click', downloadConversation);
 
-// 报告预览：取回鉴权后的 HTML，写入 iframe（sandbox）
+async function downloadConversation() {
+  if (!state.conversationReady) {
+    alert('暂无可下载的报告文件，请先回复是否需要整理对话');
+    return;
+  }
+  const { res } = await api.get(`/api/session/${state.sessionId}/conversation/download`);
+  if (!res.ok) {
+    const { data } = await res.json().catch(() => ({ data: {} }));
+    alert(data?.error || '报告获取失败');
+    return;
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `职业诊断对话记录_${state.sessionId}.html`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// 报告页预览：取回对话整理 HTML，写入 iframe（sandbox）；未生成则提示
 async function loadReport() {
-  const { res } = await api.get(`/api/session/${state.sessionId}/report/download`);
-  if (!res.ok) return;
+  const { res } = await api.get(`/api/session/${state.sessionId}/conversation/download`);
+  const tip = $('reportTip');
+  if (!res.ok) {
+    if (tip) tip.style.display = 'block';
+    return;
+  }
+  if (tip) tip.style.display = 'none';
   const html = await res.text();
   const frame = $('reportFrame');
   const doc = frame.contentDocument || frame.contentWindow.document;
@@ -344,21 +378,8 @@ async function loadReport() {
   doc.close();
 }
 
-// 新窗口打开 / 下载（PDF）：用鉴权后的 Blob 触发下载
-$('openNew').addEventListener('click', async () => {
-  const { res } = await api.get(`/api/session/${state.sessionId}/report/download`);
-  if (!res.ok) {
-    alert('报告获取失败');
-    return;
-  }
-  const blob = await res.blob();
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `职业诊断报告_${state.sessionId}.html`;
-  a.click();
-  URL.revokeObjectURL(url);
-});
+// 报告页「下载报告」：与对话页一致
+$('openNew').addEventListener('click', downloadConversation);
 
 // ---------- Admin ----------
 function maskPhone(p) {

@@ -8,6 +8,7 @@ const sessions = new Map();
 function ensureDirs() {
   fs.mkdirSync(config.sessionsDir, { recursive: true });
   fs.mkdirSync(config.reportsDir, { recursive: true });
+  fs.mkdirSync(config.conversationsDir, { recursive: true });
 }
 
 function loadAll() {
@@ -38,6 +39,8 @@ export function createSession(referencer = 'general', phone = null) {
     messages: [],
     report: null,
     postReportTurns: 0,
+    conversationFile: null, // 对话整理 HTML 路径（用户确认需要后生成）
+    conversationReady: false,
   };
   sessions.set(id, s);
   persist(s);
@@ -78,12 +81,18 @@ export function addMessage(s, role, content) {
   persist(s);
 }
 
-export function setReport(s, markdown, html) {
+export function setReport(s, markdown) {
   s.status = 'reported';
-  s.report = { markdown, html, generatedAt: Date.now() };
+  s.report = { markdown, generatedAt: Date.now() };
   s.postReportTurns = 0;
   persist(s);
-  fs.writeFileSync(path.join(config.reportsDir, `${s.id}.html`), html, { mode: 0o600 });
+}
+
+// 标记对话整理 HTML 已生成（文件由调用方写入 conversationsDir）
+export function setConversation(s, filePath) {
+  s.conversationFile = filePath;
+  s.conversationReady = true;
+  persist(s);
 }
 
 // 隐私清理：报告生成后保留 reportTtlHours，超时删对话+报告；长期未报告(abandon)的会话按 abandonTtlDays 删
@@ -105,10 +114,12 @@ export function cleanup() {
       } catch {
         /* ignore */
       }
-      try {
-        fs.unlinkSync(path.join(config.reportsDir, `${id}.html`));
-      } catch {
-        /* ignore */
+      if (s.conversationFile) {
+        try {
+          fs.unlinkSync(s.conversationFile);
+        } catch {
+          /* ignore */
+        }
       }
     }
   }

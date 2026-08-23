@@ -12,6 +12,7 @@ export const config = {
   dataDir: path.join(ROOT, 'data'),
   sessionsDir: path.join(ROOT, 'data', 'sessions'),
   reportsDir: path.join(ROOT, 'data', 'reports'),
+  conversationsDir: path.join(ROOT, 'data', 'conversations'),
 
   // LLM（OpenAI 兼容接口，默认 StepFun 阶跃星辰）
   llmApiKey: process.env.LLM_API_KEY || '',
