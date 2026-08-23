@@ -90,7 +90,7 @@ function publicConfig() {
 
 // 报告生成后，AI 在对话框内追加的追问（用户语义判断「需要/不用」）
 const CONVERSATION_FOLLOWUP =
-  '已为你生成上面的诊断报告。需要我把本次完整对话（含这份报告）整理成一份 HTML 文件，供你下载保存吗？回复「需要」即可生成，回复「不用」则跳过。';
+  '已为你生成上方的诊断报告。需要我把本次完整对话（含这份报告）整理成一份 HTML 文件供你下载保存吗？回复「需要」即可生成，回复「不用」则跳过。';
 
 // 用户回复意图识别：是否需要整理对话为 HTML（后端关键词兜底，确定性触发）
 function wantsConversation(text) {
@@ -99,6 +99,11 @@ function wantsConversation(text) {
 function refusesConversation(text) {
   return /(不用|不需要|跳过|算了|暂时不|暂不需要)/.test(text);
 }
+
+// 后端确定性回复（拦截式：命中意图时不调用 LLM，避免 LLM 输出 HTML 源码噪音）
+const NEED_REPLY =
+  '好的，已为你整理好本次完整对话（含诊断报告），生成了一份 HTML 文件。\n\n点击对话页左下角的「下载报告」按钮，即可保存到你的手机或电脑本地。\n\n该文件将在生成后 24 小时自动删除，请及时下载保存。';
+const REFUSE_REPLY = '好的，你还有其他问题吗？';
 
 // 把「到报告生成为止」的对话渲染为 HTML 并落盘，记录路径
 function generateConversation(s) {
@@ -294,20 +299,23 @@ app.post('/api/session/:id/message', requireAuth, async (req, res) => {
 
   try {
     addMessage(s, 'user', content);
-    const extraSystem =
-      s.status === 'reported' && s.report
-        ? `以下是已生成的报告全文，用户可能就报告内容追问：\n${s.report.markdown}`
-        : '';
-    const reply = await chat(sysPrompt, s.messages, { extraSystem });
-    addMessage(s, 'assistant', reply);
 
-    // 报告已生成、对话 HTML 尚未生成时：识别用户是否要整理下载
+    // 报告已生成、对话 HTML 尚未生成时：用关键词兜底识别用户意图（拦截式，不调用 LLM）
+    let reply;
     let conversationJustReady = false;
-    if (s.status === 'reported' && !s.conversationReady) {
-      if (wantsConversation(content)) {
-        if (generateConversation(s)) conversationJustReady = true;
-      }
+    if (s.status === 'reported' && !s.conversationReady && wantsConversation(content)) {
+      if (generateConversation(s)) conversationJustReady = true;
+      reply = NEED_REPLY;
+    } else if (s.status === 'reported' && refusesConversation(content)) {
+      reply = REFUSE_REPLY;
+    } else {
+      const extraSystem =
+        s.status === 'reported' && s.report
+          ? `以下是已生成的报告全文，用户可能就报告内容追问：\n${s.report.markdown}`
+          : '';
+      reply = await chat(sysPrompt, s.messages, { extraSystem });
     }
+    addMessage(s, 'assistant', reply);
 
     if (s.status === 'reported') {
       s.postReportTurns += 1;

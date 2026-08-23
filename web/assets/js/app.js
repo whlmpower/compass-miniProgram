@@ -3,6 +3,19 @@ import { api } from './api.js';
 
 const $ = (id) => document.getElementById(id);
 const CFG = { maxInputChars: 5000, maxPostReportRounds: 10, mock: false };
+
+// ---------- Markdown 渲染（marked 解析 + DOMPurify 净化，防 XSS） ----------
+function renderMarkdown(text) {
+  try {
+    const raw = window.marked ? window.marked.parse(text || '') : (text || '');
+    if (window.DOMPurify) return window.DOMPurify.sanitize(raw);
+    return raw;
+  } catch {
+    return text || '';
+  }
+}
+
+// 给 Markdown 渲染后的 bubble 内的基础样式见 assets/css/style.css 的 .bubble 区块
 const state = {
   sessionId: null,
   meta: null,
@@ -232,7 +245,7 @@ function appendMsgEl(role, text) {
   const isMe = role === 'user' || role === 'me';
   m.className = 'msg ' + (isMe ? 'me' : 'ai');
   m.innerHTML = `<div class="av">${isMe ? '你' : '罗'}</div><div class="bubble"></div>`;
-  m.querySelector('.bubble').textContent = text;
+  m.querySelector('.bubble').innerHTML = renderMarkdown(text);
   $('msgs').appendChild(m);
   window.scrollTo(0, document.body.scrollHeight);
 }

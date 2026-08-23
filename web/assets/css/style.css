@@ -214,10 +214,26 @@ table.users tr:hover td{background:var(--paper-3);}
 .msg .av{flex:none;width:26px;height:26px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:12px;}
 .msg.ai .av{background:var(--indigo);color:var(--paper);}
 .msg.me .av{background:var(--ink);color:var(--paper);order:2;}
-.msg .bubble{max-width:78%;padding:12px 15px;font-size:14px;line-height:1.7;font-weight:300;white-space:pre-wrap;word-break:break-word;}
+.msg .bubble{max-width:78%;padding:12px 15px;font-size:14px;line-height:1.7;font-weight:300;white-space:normal;word-break:break-word;}
 .msg.ai .bubble{background:var(--paper-3);color:var(--ink);border:1px solid var(--line);border-radius:3px 12px 12px 12px;}
 .msg.me{justify-content:flex-end;}
 .msg.me .bubble{background:var(--ink);color:var(--paper);border-radius:12px 3px 12px 12px;}
+/* Markdown 渲染后气泡内子元素样式 */
+.bubble h1,.bubble h2,.bubble h3{margin:.4em 0 .3em;line-height:1.35;font-weight:600;}
+.bubble h1{font-size:1.15em;} .bubble h2{font-size:1.08em;} .bubble h3{font-size:1.02em;}
+.bubble p{margin:.45em 0;}
+.bubble ul,.bubble ol{margin:.4em 0;padding-left:1.3em;}
+.bubble li{margin:.18em 0;}
+.bubble strong{font-weight:600;}
+.bubble em{font-style:italic;}
+.bubble blockquote{margin:.5em 0;padding:.3em .8em;border-left:3px solid var(--line);opacity:.8;}
+.bubble code{background:rgba(127,127,127,.18);padding:.1em .35em;border-radius:4px;font-size:.92em;}
+.bubble pre{background:rgba(127,127,127,.14);padding:.7em .85em;border-radius:8px;overflow:auto;margin:.5em 0;}
+.bubble pre code{background:none;padding:0;}
+.bubble a{text-decoration:underline;}
+.bubble hr{border:none;border-top:1px solid var(--line);margin:.7em 0;}
+.bubble table{border-collapse:collapse;margin:.5em 0;width:100%;font-size:.92em;}
+.bubble th,.bubble td{border:1px solid var(--line);padding:.3em .5em;text-align:left;}
 .typing{font-size:12px;color:var(--ink-3);font-style:italic;padding:4px 0 0 36px;}
 .composer{position:sticky;bottom:0;background:rgba(244,240,231,0.95);backdrop-filter:blur(8px);padding:14px 0 18px;border-top:1px solid var(--line);}
 .counter{font-size:11px;color:var(--ink-3);text-align:right;margin-bottom:8px;}
