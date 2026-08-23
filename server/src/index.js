@@ -36,7 +36,43 @@ import {
 } from './users.js';
 import { check, record } from './ratelimit.js';
 
+// ---------- 日志：同时落盘到 data/server.log，便于排查“卡住/无响应” ----------
+const LOG_PATH = path.join(config.dataDir, 'server.log');
+function ts() {
+  return new Date().toISOString().replace('T', ' ').slice(0, 19);
+}
+function logToFile(line) {
+  try {
+    fs.appendFileSync(LOG_PATH, line + '\n');
+  } catch {
+    /* 日志写入失败不应影响主流程 */
+  }
+}
+const origLog = console.log.bind(console);
+console.log = (...args) => {
+  const line = `[${ts()}] ${args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ')}`;
+  origLog(line);
+  logToFile(line);
+};
+const origErr = console.error.bind(console);
+console.error = (...args) => {
+  const line = `[${ts()}] [ERR] ${args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ')}`;
+  origErr(line);
+  logToFile(line);
+};
+
+// ---------- Express 实例 + 访问日志中间件 ----------
 const app = express();
+
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const ms = Date.now() - start;
+    console.log(`HTTP ${req.method} ${req.originalUrl} -> ${res.statusCode} (${ms}ms)`);
+  });
+  next();
+});
+
 app.set('trust proxy', config.trustProxy); // 受 config.trustProxy 控制，默认不信任 XFF
 
 // CORS：仅当配置了 ALLOWED_ORIGIN（前后端不同源）才开放；同源部署不挂载

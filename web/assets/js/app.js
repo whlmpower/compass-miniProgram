@@ -308,7 +308,15 @@ async function sendMessage() {
   ti.innerHTML = '<div class="av">罗</div><div class="bubble typing">思考中…</div>';
   $('msgs').appendChild(ti);
 
-  const { res, data } = await api.post(`/api/session/${state.sessionId}/message`, { content: text });
+  let res, data;
+  try {
+    ({ res, data } = await api.post(`/api/session/${state.sessionId}/message`, { content: text }));
+  } catch (err) {
+    // 超时 / 无法连接服务：移除“思考中”气泡，明确提示，避免无限转圈
+    ti.remove();
+    alert(err && err.message ? err.message : '发送失败，请稍后重试');
+    return;
+  }
   ti.remove();
   if (!res.ok) {
     if (res.status === 401) {
@@ -333,7 +341,14 @@ $('genReportBtn').addEventListener('click', generateReport);
 async function generateReport() {
   const btn = $('genReportBtn');
   btn.disabled = true;
-  const { res, data } = await api.post(`/api/session/${state.sessionId}/report`, {});
+  let res, data;
+  try {
+    ({ res, data } = await api.post(`/api/session/${state.sessionId}/report`, {}));
+  } catch (err) {
+    btn.disabled = false;
+    alert(err && err.message ? err.message : '报告生成失败，请稍后重试');
+    return;
+  }
   if (!res.ok) {
     alert(data?.error || '报告生成失败');
     btn.disabled = false;
