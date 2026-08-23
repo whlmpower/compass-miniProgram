@@ -312,6 +312,7 @@ app.get('/api/session/:id', requireAuth, (req, res) => {
     postReportTurnsLeft: Math.max(0, config.postReportTurns - s.postReportTurns),
     referencer: s.referencer,
     reportReady: !!s.report,
+    reportHtml: s.report ? s.report.html || '' : '', // 报告正文（刷新恢复后报告页直接渲染，不依赖对话整理 HTML）
     conversationReady: !!s.conversationReady,
     messageCount: s.messages.length,
     messages: s.messages,
@@ -385,7 +386,7 @@ app.post('/api/session/:id/report', requireAuth, async (req, res) => {
       markdown = await chat(sysPrompt, s.messages, { extraSystem: instruction, temperature: 0.6 });
     }
     const html = renderReportHtml(markdown);
-    setReport(s, markdown);
+    setReport(s, markdown, html); // 持久化报告正文 HTML，供刷新恢复后报告页直接渲染
     // 报告生成后，AI 在对话框内追加追问：是否需要整理对话为 HTML 下载
     addMessage(s, 'assistant', CONVERSATION_FOLLOWUP);
     res.json({ reportHtml: html, reportMarkdown: markdown, followup: CONVERSATION_FOLLOWUP });

@@ -21,6 +21,7 @@ const state = {
   meta: null,
   messages: [],
   reportReady: false,
+  reportHtml: '', // 报告正文的渲染结果（报告页优先展示，不依赖对话整理 HTML）
   conversationReady: false,
 };
 let captchaId = '';
@@ -92,6 +93,7 @@ async function getMine() {
 function applyMeta(meta) {
   state.meta = meta;
   state.reportReady = !!meta.reportReady;
+  state.reportHtml = meta.reportHtml || ''; // 刷新恢复时带回报告正文，报告页可直接渲染
   state.conversationReady = !!meta.conversationReady;
   state.messages = (meta.messages || []).map((m) => ({ role: m.role, content: m.content }));
 }
@@ -355,6 +357,7 @@ async function generateReport() {
     return;
   }
   state.reportReady = true;
+  state.reportHtml = data.reportHtml || ''; // 保存报告正文，供报告页直接渲染
   state.conversationReady = false;
   state.meta = await getMeta();
   // 报告生成后，后端会在对话流追加追问；把追问消息也展示出来
@@ -389,17 +392,21 @@ async function downloadConversation() {
   URL.revokeObjectURL(url);
 }
 
-// 报告页预览：取回对话整理 HTML，写入 iframe（sandbox）；未生成则提示
+// 报告页预览：优先展示「报告正文」（报告已生成即可看，不依赖对话整理 HTML）。
+// 报告正文为空（极端异常）才显示空态提示；对话整理 HTML 仅用于「下载报告」按钮，不在此渲染。
 async function loadReport() {
-  const { res } = await api.get(`/api/session/${state.sessionId}/conversation/download`);
+  const frame = $('reportFrame');
   const tip = $('reportTip');
-  if (!res.ok) {
+  const html = state.reportHtml || '';
+  if (!html) {
     if (tip) tip.style.display = 'block';
+    if (frame) {
+      const doc = frame.contentDocument || frame.contentWindow.document;
+      if (doc) { doc.open(); doc.write(''); doc.close(); }
+    }
     return;
   }
   if (tip) tip.style.display = 'none';
-  const html = await res.text();
-  const frame = $('reportFrame');
   const doc = frame.contentDocument || frame.contentWindow.document;
   doc.open();
   doc.write(html);

@@ -81,9 +81,9 @@ export function addMessage(s, role, content) {
   persist(s);
 }
 
-export function setReport(s, markdown) {
+export function setReport(s, markdown, html) {
   s.status = 'reported';
-  s.report = { markdown, generatedAt: Date.now() };
+  s.report = { markdown, html: html || '', generatedAt: Date.now() };
   s.postReportTurns = 0;
   persist(s);
 }
