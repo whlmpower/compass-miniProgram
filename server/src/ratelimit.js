@@ -23,7 +23,8 @@ function persist() {
     fs.mkdirSync(path.dirname(config.ratelimitFile), { recursive: true });
     fs.writeFileSync(
       config.ratelimitFile,
-      JSON.stringify({ byPhone: Object.fromEntries(byPhone), byIp: Object.fromEntries(byIp) })
+      JSON.stringify({ byPhone: Object.fromEntries(byPhone), byIp: Object.fromEntries(byIp) }),
+      { mode: 0o600 }
     );
   } catch {
     /* 忽略写入失败 */

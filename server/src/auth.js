@@ -63,13 +63,46 @@ export function verifyToken(token) {
   return payload;
 }
 
-// ---------- 客户端 IP（考虑反向代理） ----------
-export function getClientIp(req) {
-  const xff = req.headers['x-forwarded-for'];
-  if (typeof xff === 'string' && xff.length) {
-    const first = xff.split(',')[0].trim();
-    if (first) return first;
+// ---------- Cookie（httpOnly，承载 JWT，防 XSS 盗取） ----------
+const COOKIE_NAME = 'hcc_token';
+
+function parseCookies(req) {
+  const h = req.headers.cookie;
+  if (!h) return {};
+  const out = {};
+  for (const part of h.split(';')) {
+    const idx = part.indexOf('=');
+    if (idx < 0) continue;
+    const k = part.slice(0, idx).trim();
+    const v = part.slice(idx + 1).trim();
+    if (k) out[k] = decodeURIComponent(v);
   }
+  return out;
+}
+
+export function getCookie(req, name) {
+  return parseCookies(req)[name] || '';
+}
+
+export function setAuthCookie(res, token) {
+  res.cookie(COOKIE_NAME, token, {
+    httpOnly: true,
+    secure: config.cookieSecure,
+    sameSite: 'lax',
+    maxAge: config.jwtExpiresHours * 3600 * 1000,
+    path: '/',
+  });
+}
+
+export function clearAuthCookie(res) {
+  res.clearCookie(COOKIE_NAME, { path: '/', secure: config.cookieSecure });
+}
+
+// ---------- 客户端 IP（受 trust proxy 配置约束） ----------
+// 直接返回 req.ip：当 trust proxy=false 时为真实 socket 地址；
+// 当 trust proxy 设为可信代理时，Express 已据 X-Forwarded-For 解析，
+// 从而伪造 XFF 无法绕过 IP 限流。
+export function getClientIp(req) {
   return req.ip || req.socket?.remoteAddress || 'unknown';
 }
 
@@ -77,9 +110,10 @@ export function getClientIp(req) {
 export function requireAuth(req, res, next) {
   const header = req.headers.authorization || '';
   const m = header.match(/^Bearer\s+(.+)$/i);
-  if (!m) return res.status(401).json({ error: '未登录' });
+  const token = m ? m[1] : getCookie(req, COOKIE_NAME);
+  if (!token) return res.status(401).json({ error: '未登录' });
   try {
-    req.user = verifyToken(m[1]);
+    req.user = verifyToken(token);
     next();
   } catch {
     return res.status(401).json({ error: '登录已失效，请重新登录' });

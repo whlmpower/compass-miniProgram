@@ -10,6 +10,8 @@ const HEIGHT = 46;
 const MAP = new Map();
 
 export function generateCaptcha() {
+  sweep();
+  if (MAP.size > 5000) return { captchaId: '', svg: '' }; // 内存兜底，防验证码 Map 膨胀被滥用
   const captchaId = crypto.randomUUID();
   let answer = '';
   for (let i = 0; i < 4; i++) {

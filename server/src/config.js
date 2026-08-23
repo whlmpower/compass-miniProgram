@@ -34,6 +34,15 @@ export const config = {
   adminPassword: process.env.ADMIN_PASSWORD || '',
   userPwdTtlHours: Number(process.env.USER_PWD_TTL_HOURS || 24),
 
+  // 安全加固（v2 安全审查后新增）
+  cookieSecure: process.env.NODE_ENV === 'production' || process.env.COOKIE_SECURE === 'true',
+  allowedOrigin: process.env.ALLOWED_ORIGIN || '', // 前后端不同源时填前端域名；同源留空
+  trustProxy: process.env.TRUST_PROXY || false, // 部署在可信反向代理后填 'loopback'/'127.0.0.1'/'true'
+  enableHsts: process.env.ENABLE_HSTS === 'true' || process.env.NODE_ENV === 'production',
+  csp:
+    process.env.CSP ||
+    "default-src 'self'; img-src 'self' data:; font-src 'self' https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; script-src 'self' 'unsafe-inline'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'",
+
   // 限流（v2）
   ratePhoneMax: Number(process.env.RATE_PHONE_MAX || 5),
   rateIpMax: Number(process.env.RATE_IP_MAX || 10),

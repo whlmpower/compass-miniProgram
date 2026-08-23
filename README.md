@@ -86,7 +86,7 @@ LLM_TEMPERATURE=0.8
 LLM_MOCK=false                       # true=演示兜底；默认 false=真实大模型
 
 # 鉴权（v2 新增）
-JWT_SECRET=请换成随机长字符串         # 生产环境必改！用于签发 JWT
+JWT_SECRET=请换成强随机长字符串（≥32字节）   # 生产必改！仍为默认/弱密钥时生产启动直接拒绝
 JWT_EXPIRES_HOURS=24                 # 登录态有效期
 ADMIN_PHONE=13800000001              # 管理员手机号（首次启动写入存储）
 ADMIN_PASSWORD=admin123456           # 管理员密码（首次启动写入存储，可在管理后台修改）
@@ -109,7 +109,7 @@ REPORT_TTL_HOURS=24                  # 报告留存时长，超时自动删除
 - **封闭分发**：账号仅由管理员在后台创建并线下发放，不开放公开注册。
 - **账号密码**：10 位 = 1 位数字 + 9 位大小写字母，排除歧义字符 `0/O/1/l/I`；24 小时内可复用，过期后需管理员重新生成。
 - **登录**：手机号 + 图形验证码 + 密码三要素；图形验证码错误只拦截本次、不计数；手机/密码错误才计数；同手机号 24h≤5 次、同 IP 24h≤10 次失败限流（防枚举）。
-- **JWT**：登录后签发 HS256 JWT（24h 有效期），前端 `localStorage` 存储 + `Authorization: Bearer`；服务端不维护黑名单，过期即失效。
+- **JWT**：登录后签发 HS256 JWT（24h 有效期），由后端写入 **httpOnly + SameSite=Lax Cookie**（前端不再使用 `localStorage`，XSS 无法窃取）；服务端不维护黑名单，过期即失效。
 - **输入限制**：诊断页每轮输入 ≤ 5000 字。
 - **对话阶段**：报告前不限轮次，登录用户免费；报告生成后最多再追问 10 轮，用尽后禁言。
 - **报告触发**：用户主动点「生成报告」按钮（每次诊断仅生成一次），生成后直接预览/下载，**无广告闸门**。
@@ -132,7 +132,11 @@ LLM_MOCK=true ADMIN_PHONE=13800000001 ADMIN_PASSWORD=admin123456 JWT_SECRET=test
 
 ## 部署与迁移到小程序
 
-- **H5 部署**：需备案 HTTPS 域名，将 `web/` 静态托管 + `server/` 后端部署到同一域名（或不同子域并配置 CORS）；部署前务必修改 `.env` 中的 `JWT_SECRET` 为随机长字符串。
+- **H5 部署**：需备案 **HTTPS** 域名，将 `web/` 静态托管 + `server/` 后端部署到同一域名（或不同子域并配置 `ALLOWED_ORIGIN`）。部署前务必：
+  1. 将 `.env` 的 `JWT_SECRET` 改为强随机长字符串（≥32 字节，如 `openssl rand -hex 32`）；仍为默认/弱密钥时生产环境启动会直接拒绝。
+  2. 前置 Nginx 强制 HTTPS 跳转；后端在 `ENABLE_HSTS` 或 `NODE_ENV=production` 时自动下发 `Strict-Transport-Security`，确保全程加密、密码与 token 不裸奔。
+  3. 若后端位于可信反向代理之后，设置 `TRUST_PROXY=loopback`（或具体代理 IP），使 `X-Forwarded-For` 的限流/IP 识别可信；未设置则默认不信任 XFF，伪造 XFF 无法绕过 IP 限流。
+  4. 后端默认已下发 CSP / `X-Frame-Options` / `X-Content-Type-Options` / `Referrer-Policy` 等安全响应头；`cookieSecure` 在 production 下自动为 `true`（Cookie 仅经 HTTPS 传输）。
 - **迁移小程序**：前端逻辑（登录/对话/报告）与 UI 已组件化、与后端解耦。后续可用 uni-app / Taro 重写前端为一套代码出小程序；后端无需改动。注意个人主体小程序**不能**使用 `web-view` 与流量主广告，需办理**个体工商户营业执照**后方可接真实广告与微信支付。
 
 ## 成本参考

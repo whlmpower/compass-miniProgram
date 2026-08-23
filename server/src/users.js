@@ -20,7 +20,7 @@ function load() {
 
 function save(data) {
   ensureDir();
-  fs.writeFileSync(config.usersFile, JSON.stringify(data, null, 2));
+  fs.writeFileSync(config.usersFile, JSON.stringify(data, null, 2), { mode: 0o600 });
 }
 
 // ---------- 密码生成（10 位：1 数字 + 9 字母，排除歧义字符） ----------
