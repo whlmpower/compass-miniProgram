@@ -27,10 +27,11 @@ function loadAll() {
   }
 }
 
-export function createSession(referencer = 'general') {
+export function createSession(referencer = 'general', phone = null) {
   const id = crypto.randomUUID();
   const s = {
     id,
+    phone, // 归属用户手机号（v2 鉴权后必填，用于恢复历史与会话隔离）
     createdAt: Date.now(),
     status: 'collecting', // collecting | reported
     referencer,
@@ -43,12 +44,33 @@ export function createSession(referencer = 'general') {
   return s;
 }
 
+// 返回该用户最近一个「有效」会话：reported 会话在 reportTtlHours 内有效；
+// collecting 会话在 abandonTtlDays 内有效。无则 null。
+export function getLatestValidSessionForPhone(phone) {
+  const now = Date.now();
+  const ttl = config.reportTtlHours * 3600 * 1000;
+  const abandonTtl = config.abandonTtlDays * 24 * 3600 * 1000;
+  let best = null;
+  for (const s of sessions.values()) {
+    if (!phone || s.phone !== phone) continue;
+    let valid;
+    if (s.status === 'reported' && s.report) {
+      valid = now - s.report.generatedAt <= ttl;
+    } else {
+      valid = now - s.createdAt <= abandonTtl;
+    }
+    if (!valid) continue;
+    if (!best || s.createdAt > best.createdAt) best = s;
+  }
+  return best;
+}
+
 export function getSession(id) {
   return sessions.get(id);
 }
 
 export function persist(s) {
-  fs.writeFileSync(path.join(config.sessionsDir, `${s.id}.json`), JSON.stringify(s));
+  fs.writeFileSync(path.join(config.sessionsDir, `${s.id}.json`), JSON.stringify(s), { mode: 0o600 });
 }
 
 export function addMessage(s, role, content) {
@@ -61,7 +83,7 @@ export function setReport(s, markdown, html) {
   s.report = { markdown, html, generatedAt: Date.now() };
   s.postReportTurns = 0;
   persist(s);
-  fs.writeFileSync(path.join(config.reportsDir, `${s.id}.html`), html);
+  fs.writeFileSync(path.join(config.reportsDir, `${s.id}.html`), html, { mode: 0o600 });
 }
 
 // 隐私清理：报告生成后保留 reportTtlHours，超时删对话+报告；长期未报告(abandon)的会话按 abandonTtlDays 删

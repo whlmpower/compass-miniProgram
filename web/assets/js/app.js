@@ -27,7 +27,7 @@ function go(v) {
     $('loginErr').textContent = '';
     loadCaptcha();
   }
-  if (v === 'admin' && api.token && api.role === 'admin') loadAdmin();
+  if (v === 'admin' && api.authed && api.role === 'admin') loadAdmin();
   if (v === 'chat') {
     renderChat();
     renderChatPhase();
@@ -54,7 +54,7 @@ async function loadConfig() {
 
 // ---------- 导航态 ----------
 function updateNav() {
-  const loggedIn = !!api.token;
+  const loggedIn = api.authed;
   $('navLogin').style.display = loggedIn ? 'none' : '';
   $('navAdmin').style.display = loggedIn && api.role === 'admin' ? '' : 'none';
 }
@@ -67,16 +67,47 @@ async function getMeta() {
   return null;
 }
 
-async function ensureSession() {
+// 当前用户最近一个有效会话（刷新后恢复历史用）
+async function getMine() {
+  const { res, data } = await api.get('/api/sessions/mine');
+  if (res.ok && data.session) return data.session;
+  return null;
+}
+
+// 把服务端返回的会话概要写入前端 state（含历史消息）
+function applyMeta(meta) {
+  state.meta = meta;
+  state.reportReady = !!meta.reportReady;
+  state.messages = (meta.messages || []).map((m) => ({ role: m.role, content: m.content }));
+}
+
+// autoCreate=false 时只恢复已有会话、不新建（用于登录/刷新自动续接）；
+// autoCreate=true 时恢复最近一个，没有则新建（用于点击「开始诊断」）。
+async function ensureSession({ autoCreate = true } = {}) {
+  // 1) 内存中已有 sessionId 且仍有效 → 直接复用
   if (state.sessionId) {
     const meta = await getMeta();
     if (meta) {
-      state.meta = meta;
+      applyMeta(meta);
       return true;
     }
     state.sessionId = null;
     state.messages = [];
   }
+  // 2) 恢复最近一个属于本用户的会话
+  const mine = await getMine();
+  if (mine) {
+    state.sessionId = mine.id;
+    const meta = await getMeta();
+    if (meta) {
+      applyMeta(meta);
+      return true;
+    }
+    state.sessionId = null;
+    state.messages = [];
+  }
+  // 3) 没有历史会话 → 按需新建
+  if (!autoCreate) return false;
   const { res, data } = await api.post('/api/session', {});
   if (!res.ok) {
     if (res.status === 401) {
@@ -89,11 +120,34 @@ async function ensureSession() {
   state.sessionId = data.sessionId;
   state.messages = [{ role: 'assistant', content: data.greeting }];
   state.meta = await getMeta();
+  state.reportReady = false;
   return true;
 }
 
+// 新建一次对话：保留旧会话于历史，开一个全新会话
+async function startNewSession() {
+  if (!confirm('开始一次新的诊断？当前对话会保留在历史中，刷新后可恢复。')) return;
+  const { res, data } = await api.post('/api/session', {});
+  if (!res.ok) {
+    if (res.status === 401) {
+      api.clear();
+      updateNav();
+      go('login');
+      return;
+    }
+    alert(data?.error || '新建失败');
+    return;
+  }
+  state.sessionId = data.sessionId;
+  state.messages = [{ role: 'assistant', content: data.greeting }];
+  state.meta = await getMeta();
+  state.reportReady = false;
+  go('chat');
+  window.scrollTo(0, 0);
+}
+
 async function startDiagnosis() {
-  if (api.token && api.role === 'user') {
+  if (api.authed && api.role === 'user') {
     if (await ensureSession()) go('chat');
   } else {
     go('login');
@@ -104,6 +158,9 @@ $('sampleStartBtn').addEventListener('click', () => {
   closeMask('sampleMask');
   startDiagnosis();
 });
+
+// 新建对话（保留旧会话于历史，开全新会话）
+$('newChatBtn').addEventListener('click', startNewSession);
 
 // ---------- 登录 ----------
 async function loadCaptcha() {
@@ -151,8 +208,10 @@ function onLoggedIn(role) {
   if (role === 'admin') {
     go('admin');
   } else {
-    ensureSession().then((ok) => {
+    // 仅恢复已有会话（不静默新建）；有历史则进对话页，否则回首页
+    ensureSession({ autoCreate: false }).then((ok) => {
       if (ok) go('chat');
+      else go('home');
     });
   }
 }
@@ -166,8 +225,9 @@ function renderChat() {
 }
 function appendMsgEl(role, text) {
   const m = document.createElement('div');
-  m.className = 'msg ' + (role === 'me' ? 'me' : 'ai');
-  m.innerHTML = `<div class="av">${role === 'me' ? '你' : '罗'}</div><div class="bubble"></div>`;
+  const isMe = role === 'user' || role === 'me';
+  m.className = 'msg ' + (isMe ? 'me' : 'ai');
+  m.innerHTML = `<div class="av">${isMe ? '你' : '罗'}</div><div class="bubble"></div>`;
   m.querySelector('.bubble').textContent = text;
   $('msgs').appendChild(m);
   window.scrollTo(0, document.body.scrollHeight);
@@ -315,12 +375,17 @@ function fmt(ts) {
   return `${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
+let allUsers = [];
+let userPage = 1;
+const USER_PAGE_SIZE = 10;
+
 async function loadAdmin() {
   const me = await api.get('/api/me');
   if (me.res.ok) $('adminPhone').textContent = maskPhone(me.data.phone);
   const { res, data } = await api.get('/api/admin/users');
   if (res.ok) {
-    renderUsers(data.users || []);
+    allUsers = data.users || [];
+    if (!$('tab-list').hidden) renderUsersPage(userPage);
   } else if (res.status === 401) {
     api.clear();
     updateNav();
@@ -331,14 +396,20 @@ async function loadAdmin() {
   }
 }
 
-function renderUsers(users) {
+function renderUsersPage(page) {
+  const total = allUsers.length;
+  const pages = Math.max(1, Math.ceil(total / USER_PAGE_SIZE));
+  userPage = Math.min(Math.max(1, page), pages);
+  const start = (userPage - 1) * USER_PAGE_SIZE;
+  const slice = allUsers.slice(start, start + USER_PAGE_SIZE);
   const tb = $('userRows');
   tb.innerHTML = '';
-  if (!users.length) {
+  if (!slice.length) {
     tb.innerHTML = '<tr><td colspan="5" style="color:var(--ink-3)">暂无用户</td></tr>';
+    $('userPager').innerHTML = '';
     return;
   }
-  for (const u of users) {
+  for (const u of slice) {
     const tr = document.createElement('tr');
     tr.innerHTML = `<td>${u.phoneMasked}</td><td><span class="st ${u.status}">${statusText(u.status)}</span></td><td>${fmt(u.createdAt)}</td><td>${fmt(u.expiresAt)}</td><td><div class="admin-row-actions"></div></td>`;
     const actions = tr.querySelector('.admin-row-actions');
@@ -353,7 +424,44 @@ function renderUsers(users) {
     actions.append(reset, revoke);
     tb.appendChild(tr);
   }
+  const pager = $('userPager');
+  pager.innerHTML = '';
+  const prev = document.createElement('button');
+  prev.className = 'mini-btn';
+  prev.textContent = '上一页';
+  prev.disabled = userPage <= 1;
+  prev.onclick = () => renderUsersPage(userPage - 1);
+  const info = document.createElement('span');
+  info.className = 'pager-info';
+  info.textContent = `共 ${total} 条 · 第 ${userPage}/${pages} 页`;
+  const next = document.createElement('button');
+  next.className = 'mini-btn';
+  next.textContent = '下一页';
+  next.disabled = userPage >= pages;
+  next.onclick = () => renderUsersPage(userPage + 1);
+  pager.append(prev, info, next);
 }
+
+function refreshUsers() {
+  api.get('/api/admin/users').then(({ res, data }) => {
+    if (res.ok) {
+      allUsers = data.users || [];
+      if (!$('tab-list').hidden) renderUsersPage(userPage);
+    }
+  });
+}
+
+function showAdminTab(name) {
+  document.querySelectorAll('#adminTabs .tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
+  $('tab-gen').hidden = name !== 'gen';
+  $('tab-list').hidden = name !== 'list';
+  $('tab-pwd').hidden = name !== 'pwd';
+  if (name === 'list') renderUsersPage(userPage);
+}
+
+document.querySelectorAll('#adminTabs .tab').forEach((t) => {
+  t.addEventListener('click', () => showAdminTab(t.dataset.tab));
+});
 
 $('genBtn').addEventListener('click', async () => {
   const phone = $('genPhone').value.trim();
@@ -365,7 +473,7 @@ $('genBtn').addEventListener('click', async () => {
   if (res.ok) {
     $('pwCode').textContent = data.password;
     $('pwOut').classList.add('show');
-    loadAdmin();
+    refreshUsers();
   } else {
     alert(data?.error || '生成失败');
   }
@@ -383,7 +491,7 @@ async function adminReset(phone) {
   if (res.ok) {
     $('pwCode').textContent = data.password;
     $('pwOut').classList.add('show');
-    loadAdmin();
+    refreshUsers();
   } else {
     alert(data?.error || '操作失败');
   }
@@ -391,7 +499,7 @@ async function adminReset(phone) {
 async function adminRevoke(phone) {
   if (!confirm('确认作废该账号？作废后该密码将立即失效。')) return;
   const { res, data } = await api.post(`/api/admin/users/${phone}/revoke`, {});
-  if (res.ok) loadAdmin();
+  if (res.ok) refreshUsers();
   else alert(data?.error || '操作失败');
 }
 
@@ -462,7 +570,7 @@ async function fillSample() {
     dlg.innerHTML = '';
     (s.dialogue || []).forEach((m) => {
       const p = document.createElement('p');
-      p.textContent = (m.role === 'ai' ? '罗：' : '用户：') + m.text;
+      p.textContent = (m.role === 'assistant' || m.role === 'ai' ? '罗：' : '用户：') + m.text;
       dlg.appendChild(p);
     });
     const con = $('sampleModalConclusion');
@@ -481,13 +589,20 @@ async function fillSample() {
 (async () => {
   await loadConfig();
   await fillSample();
-  if (api.token) {
-    const { res, data } = await api.get('/api/me');
-    if (res.ok) {
-      api.role = data.role;
+  // 以 httpOnly Cookie 校验登录态（不再依赖 localStorage）
+  const { res, data } = await api.get('/api/me');
+  if (res.ok) {
+    api.setSession('', data.role);
+    updateNav();
+    if (data.role === 'admin') {
+      go('admin');
     } else {
-      api.clear();
+      // 刷新后自动恢复最近有效会话；有历史进对话页，无则回首页
+      const ok = await ensureSession({ autoCreate: false });
+      if (ok) go('chat');
+      else go('home');
     }
+    return;
   }
   updateNav();
   go('home');

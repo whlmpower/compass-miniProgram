@@ -128,42 +128,55 @@
       <div class="who">当前管理员　<b id="adminPhone">—</b>　·　<a href="#" class="link-btn" id="logoutBtn">退出登录</a></div>
     </div>
 
-    <div class="sec-head"><span class="sec-num">A</span><span class="sec-line"></span><h2>生成账号密码</h2></div>
-    <div class="gen-box">
-      <div class="field">
-        <label>用户手机号</label>
-        <input id="genPhone" type="tel" inputmode="numeric" maxlength="11" placeholder="输入要创建的手机号" />
-      </div>
-      <button class="btn" id="genBtn">生成密码</button>
-      <div class="pw-out" id="pwOut">
-        <div>
-          <div style="font-size:11px;color:var(--ink-3);letter-spacing:0.1em;">账号密码（24 小时内有效，请线下告知用户）</div>
-          <div class="code" id="pwCode">—</div>
+    <div class="tabs" id="adminTabs">
+      <button class="tab active" data-tab="gen">A · 生成账号</button>
+      <button class="tab" data-tab="list">B · 已创建用户</button>
+      <button class="tab" data-tab="pwd">C · 修改密码</button>
+    </div>
+
+    <div class="tab-panel" id="tab-gen">
+      <div class="sec-head"><span class="sec-num">A</span><span class="sec-line"></span><h2>生成账号密码</h2></div>
+      <div class="gen-box">
+        <div class="field">
+          <label>用户手机号</label>
+          <input id="genPhone" type="tel" inputmode="numeric" maxlength="11" placeholder="输入要创建的手机号" />
         </div>
-        <button class="mini-btn" id="copyPw">复制</button>
+        <button class="btn" id="genBtn">生成密码</button>
+        <div class="pw-out" id="pwOut">
+          <div>
+            <div style="font-size:11px;color:var(--ink-3);letter-spacing:0.1em;">账号密码（24 小时内有效，请线下告知用户）</div>
+            <div class="code" id="pwCode">—</div>
+          </div>
+          <button class="mini-btn" id="copyPw">复制</button>
+        </div>
       </div>
     </div>
 
-    <div class="sec-head admin-section"><span class="sec-num">B</span><span class="sec-line"></span><h2>已创建用户</h2></div>
-    <table class="users">
-      <thead>
-        <tr><th>手机号</th><th>状态</th><th>生成时间</th><th>过期</th><th>操作</th></tr>
-      </thead>
-      <tbody id="userRows"></tbody>
-    </table>
+    <div class="tab-panel" id="tab-list" hidden>
+      <div class="sec-head"><span class="sec-num">B</span><span class="sec-line"></span><h2>已创建用户</h2></div>
+      <table class="users">
+        <thead>
+          <tr><th>手机号</th><th>状态</th><th>生成时间</th><th>过期</th><th>操作</th></tr>
+        </thead>
+        <tbody id="userRows"></tbody>
+      </table>
+      <div class="pager" id="userPager"></div>
+    </div>
 
-    <div class="sec-head admin-section"><span class="sec-num">C</span><span class="sec-line"></span><h2>修改管理员密码</h2></div>
-    <div class="gen-box">
-      <div class="field">
-        <label>旧密码</label>
-        <input id="oldPwd" type="password" autocomplete="off" placeholder="管理员当前密码" />
+    <div class="tab-panel" id="tab-pwd" hidden>
+      <div class="sec-head"><span class="sec-num">C</span><span class="sec-line"></span><h2>修改管理员密码</h2></div>
+      <div class="gen-box">
+        <div class="field">
+          <label>旧密码</label>
+          <input id="oldPwd" type="password" autocomplete="off" placeholder="管理员当前密码" />
+        </div>
+        <div class="field">
+          <label>新密码</label>
+          <input id="newPwd" type="password" autocomplete="off" placeholder="设置新的管理员密码" />
+        </div>
+        <button class="btn" id="changePwBtn">更新密码</button>
+        <div class="err" id="pwErr"></div>
       </div>
-      <div class="field">
-        <label>新密码</label>
-        <input id="newPwd" type="password" autocomplete="off" placeholder="设置新的管理员密码" />
-      </div>
-      <button class="btn" id="changePwBtn">更新密码</button>
-      <div class="err" id="pwErr"></div>
     </div>
     <div class="footnote">密码有效期为登录成功后 24 小时；过期后由管理员对该手机号重新生成覆盖。失败计数：同手机号 24h≤5 次、同 IP 24h≤10 次。</div>
   </section>
@@ -175,7 +188,10 @@
         <div class="title">职业诊断对话</div>
         <div class="phase" id="phaseLabel">诊断进行中</div>
       </div>
-      <a href="#" class="link-btn" data-go="home">退出</a>
+      <div class="chat-top-actions">
+        <button class="link-btn" id="newChatBtn">新建对话</button>
+        <a href="#" class="link-btn" data-go="home">退出</a>
+      </div>
     </div>
     <div id="phaseTagWrap" style="margin:10px 0 0;"></div>
 
