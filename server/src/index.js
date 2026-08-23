@@ -139,7 +139,30 @@ function refusesConversation(text) {
 // 后端确定性回复（拦截式：命中意图时不调用 LLM，避免 LLM 输出 HTML 源码噪音）
 const NEED_REPLY =
   '好的，已为你整理好本次完整对话（含诊断报告），生成了一份 HTML 文件。\n\n点击对话页左下角的「下载报告」按钮，即可保存到你的手机或电脑本地。\n\n该文件将在生成后 24 小时自动删除，请及时下载保存。';
+// 文件已生成后，用户再次表达下载意图时的兜底（仍不调 LLM，直接告知已就绪）
+const NEED_READY_REPLY =
+  '这份对话整理 HTML 已经生成好啦，无需重复生成。\n\n点击对话页左下角的「下载报告」按钮，即可直接保存到本地。\n\n该文件将在生成后 24 小时自动删除，请及时下载。';
 const REFUSE_REPLY = '好的，你还有其他问题吗？';
+
+// 报告后阶段用户意图的确定性处理（不调用 LLM）：
+// 返回 { reply, justReady } 或 null（表示应走普通 LLM 对话）。
+// 只要命中下载意图（需要/下载/整理/…）就拦截，避免 LLM 输出无关话术；
+// 已生成则提示就绪、未生成则触发生成。
+function resolvePostReportReply(s, content) {
+  if (s.status !== 'reported') return null;
+  if (wantsConversation(content)) {
+    if (!s.conversationReady) {
+      const justReady = generateConversation(s);
+      return { reply: NEED_REPLY, justReady };
+    }
+    return { reply: NEED_READY_REPLY, justReady: false };
+  }
+  if (refusesConversation(content)) {
+    return { reply: REFUSE_REPLY, justReady: false };
+  }
+  return null;
+}
+export { resolvePostReportReply };
 
 // 把「到报告生成为止」的对话渲染为 HTML 并落盘，记录路径
 function generateConversation(s) {
@@ -337,14 +360,13 @@ app.post('/api/session/:id/message', requireAuth, async (req, res) => {
   try {
     addMessage(s, 'user', content);
 
-    // 报告已生成、对话 HTML 尚未生成时：用关键词兜底识别用户意图（拦截式，不调用 LLM）
+    // 报告已生成后：用关键词兜底识别用户意图（拦截式，不调用 LLM，避免 LLM 输出无关话术）
     let reply;
     let conversationJustReady = false;
-    if (s.status === 'reported' && !s.conversationReady && wantsConversation(content)) {
-      if (generateConversation(s)) conversationJustReady = true;
-      reply = NEED_REPLY;
-    } else if (s.status === 'reported' && refusesConversation(content)) {
-      reply = REFUSE_REPLY;
+    const intent = resolvePostReportReply(s, content);
+    if (intent) {
+      reply = intent.reply;
+      conversationJustReady = intent.justReady;
     } else {
       const extraSystem =
         s.status === 'reported' && s.report
