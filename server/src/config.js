@@ -23,7 +23,7 @@ export const config = {
   llmMock: process.env.LLM_MOCK === 'true',
 
   // 业务规则
-  maxInputChars: Number(process.env.MAX_INPUT_CHARS || 5000),
+  maxInputChars: Number(process.env.MAX_INPUT_CHARS || 1000),
   postReportTurns: Number(process.env.POST_REPORT_TURNS || 10),
   reportTtlHours: Number(process.env.REPORT_TTL_HOURS || 24),
   abandonTtlDays: Number(process.env.ABANDON_TTL_DAYS || 3),

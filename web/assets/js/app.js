@@ -2,7 +2,7 @@
 import { api } from './api.js';
 
 const $ = (id) => document.getElementById(id);
-const CFG = { maxInputChars: 5000, maxPostReportRounds: 10, mock: false };
+const CFG = { maxInputChars: 1000, maxPostReportRounds: 10, mock: false };
 
 // ---------- Markdown 渲染（marked 解析 + DOMPurify 净化，防 XSS） ----------
 function renderMarkdown(text) {
