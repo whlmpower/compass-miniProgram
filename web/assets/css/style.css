@@ -217,7 +217,7 @@ table.users tr:hover td{background:var(--paper-3);}
 .msg .bubble{max-width:78%;padding:12px 15px;font-size:14px;line-height:1.7;font-weight:300;white-space:normal;word-break:break-word;}
 .msg.ai .bubble{background:var(--paper-3);color:var(--ink);border:1px solid var(--line);border-radius:3px 12px 12px 12px;}
 .msg.me{justify-content:flex-end;}
-.msg.me .bubble{background:var(--ink);color:var(--paper);border-radius:12px 3px 12px 12px;}
+.msg.me .bubble{background:var(--ink);color:#fff;font-weight:300;border-radius:12px 3px 12px 12px;}
 /* Markdown 渲染后气泡内子元素样式 */
 .bubble h1,.bubble h2,.bubble h3{margin:.4em 0 .3em;line-height:1.35;font-weight:600;}
 .bubble h1{font-size:1.15em;} .bubble h2{font-size:1.08em;} .bubble h3{font-size:1.02em;}
@@ -261,5 +261,53 @@ table.users tr:hover td{background:var(--paper-3);}
 .center{text-align:center;}
 .mt30{margin-top:30px;}
 .mt20{margin-top:20px;}
+.sample-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
 .gap18{display:flex;gap:14px;flex-wrap:wrap;align-items:center;}
 .hidden{display:none!important;}
+
+/* ---------- 样例弹层：Tab 切换 + 对话气泡 + 报告排版 ---------- */
+.sample-tabs{display:flex;gap:6px;margin:18px 0 4px;border-bottom:1px solid var(--line);}
+.sample-tab{
+  appearance:none;background:none;border:none;cursor:pointer;
+  font-family:var(--serif);font-size:15px;font-weight:600;letter-spacing:0.03em;
+  color:var(--ink-3);padding:9px 16px 11px;position:relative;transition:.25s;
+}
+.sample-tab:hover{color:var(--ink-2);}
+.sample-tab.active{color:var(--indigo);}
+.sample-tab.active::after{
+  content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--indigo);
+}
+.sample-panel{margin-top:14px;}
+.sample-panel[hidden]{display:none;}
+
+/* 对话节选：复用聊天气泡，但气泡内子元素已自带富文本标记 */
+.sample-dialogue{margin:4px 0;}
+.sample-dialogue .msg{margin-bottom:14px;}
+/* 弹窗内 .modal p 会强制所有 <p> 为深灰+细体，盖掉气泡文字色；这里显式提权还原 */
+.sample-dialogue .msg.ai .bubble,
+.sample-dialogue .msg.ai .bubble *{color:var(--ink);}
+.sample-dialogue .msg.me .bubble,
+.sample-dialogue .msg.me .bubble *{color:#fff;font-weight:300;}
+
+/* 诊断报告：编辑风排版，复用 H5 token */
+.sample-report{font-size:14px;color:var(--ink-2);line-height:1.85;}
+.sample-report h1{font-family:var(--serif);font-size:21px;font-weight:600;color:var(--ink);margin:4px 0 16px;letter-spacing:0.01em;}
+.sample-report h2{font-family:var(--serif);font-size:17px;font-weight:600;color:var(--indigo);margin:24px 0 10px;padding-left:11px;border-left:4px solid var(--indigo);}
+.sample-report h3{font-family:var(--serif);font-size:15px;font-weight:600;color:var(--indigo-2);margin:18px 0 6px;}
+.sample-report h4{font-size:14px;font-weight:600;color:var(--ink);margin:16px 0 6px;}
+.sample-report p{margin:10px 0;}
+.sample-report ul,.sample-report ol{margin:10px 0;padding-left:22px;}
+.sample-report li{margin:5px 0;}
+.sample-report strong{font-weight:600;color:var(--ink);}
+.sample-report em{font-style:italic;}
+.sample-report blockquote{margin:14px 0;padding:11px 15px;background:var(--indigo-tint);border-left:4px solid var(--indigo);border-radius:0 6px 6px 0;color:var(--ink-2);}
+.sample-report blockquote p{margin:4px 0;}
+.sample-report hr{border:none;border-top:1px dashed var(--line-2);margin:20px 0;}
+.sample-report table{border-collapse:collapse;margin:14px 0;width:100%;font-size:13px;}
+.sample-report th,.sample-report td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top;}
+.sample-report th{background:var(--indigo-tint);color:var(--indigo);font-weight:600;font-family:var(--serif);}
+.sample-report tr:nth-child(even) td{background:rgba(31,30,26,0.03);}
+.sample-report a{color:var(--indigo);text-decoration:underline;}
+.sample-report code{background:var(--paper-3);color:#9a3b2e;padding:2px 6px;border-radius:4px;font-size:13px;}
+.sample-report pre{background:var(--paper-3);padding:10px 12px;border-radius:8px;overflow:auto;margin:10px 0;}
+.sample-report pre code{background:none;padding:0;color:var(--ink-2);}

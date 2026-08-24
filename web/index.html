@@ -6,9 +6,9 @@
   <title>职业罗盘 · 职业自我认知诊断</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Noto+Sans+SC:wght@300;400;500&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/assets/css/tokens.css" />
-  <link rel="stylesheet" href="/assets/css/style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/assets/css/tokens.css?v=2" />
+  <link rel="stylesheet" href="/assets/css/style.css?v=2" />
 </head>
 <body>
 <div class="app">
@@ -43,12 +43,12 @@
     <p class="body r" style="--i:7">一份真实的脱敏报告，看看它能带你看到什么。</p>
     <div class="sample-card r" style="--i:8">
       <span class="tag">脱敏样例</span>
-      <h3 id="sampleCardTitle">山大班长 · 外企技术 vs 回国企</h3>
-      <div class="meta" id="sampleCardMeta">参照系：外企 / 国企　·　核心矛盾：自主 vs 安稳</div>
+      <h3 id="sampleCardTitle">某高校班长 · 大厂 vs 央国企 vs 考公</h3>
+      <div class="meta" id="sampleCardMeta">参照系：大厂 / 央国企 / 考公　·　核心矛盾：生活关系 vs 职业成就</div>
       <ul id="sampleCardPoints">
-        <li>表面在比"薪资与稳定"，深层在比"谁更像我自己"</li>
-        <li>六个维度中，自主与意义严重错位</li>
-        <li>参照系对比显示：回国企缓解焦虑，但放大存在感空洞</li>
+        <li>表面在比薪资与稳定，深层在比「谁更像我自己」</li>
+        <li>六个维度中，关系与生活压过职业成就，工作生活边界极清晰（85/100）</li>
+        <li>参照系对比显示：留同城央国企缓解焦虑，但管理志向还需真实职场验证</li>
       </ul>
       <button class="link-btn" id="openSample">阅读完整样例 →</button>
     </div>
@@ -254,13 +254,22 @@
 <div class="modal-mask" id="sampleMask">
   <div class="modal">
     <button class="close" id="closeSample">×</button>
-    <h3 id="sampleModalTitle">山大班长 · 完整脱敏样例（节选）</h3>
-    <p id="sampleModalMeta" style="color:var(--ink-3);font-size:12px;">外企技术 5 年，父母希望回国企，自己不甘心。</p>
-    <h4>对话节选</h4>
-    <div id="sampleModalDialogue"></div>
-    <h4>诊断结论（节选）</h4>
-    <div id="sampleModalConclusion"></div>
-    <div class="mt20"><button class="btn" id="sampleStartBtn">我也要做一次 →</button></div>
+    <h3 id="sampleModalTitle">某高校班长 · 完整脱敏样例</h3>
+    <p id="sampleModalMeta" style="color:var(--ink-3);font-size:12px;">大厂 5 年，父母希望回南京，自己不甘心。</p>
+    <div class="sample-tabs">
+      <button class="sample-tab active" data-tab="report">诊断报告</button>
+      <button class="sample-tab" data-tab="dlg">对话节选</button>
+    </div>
+    <div class="sample-panel" id="sampleDlgPanel" hidden>
+      <div class="sample-dialogue" id="sampleModalDialogue"></div>
+    </div>
+    <div class="sample-panel" id="sampleReportPanel">
+      <div class="sample-report" id="sampleModalReport"></div>
+    </div>
+    <div class="mt20 sample-actions">
+      <button class="btn ghost" id="sampleSwitchBtn">查看报告样例</button>
+      <button class="btn" id="sampleStartBtn">我也要做一次 →</button>
+    </div>
   </div>
 </div>
 
@@ -268,6 +277,6 @@
 <script src="/assets/vendor/marked.min.js"></script>
 <script src="/assets/vendor/purify.min.js"></script>
 <script type="module" src="/assets/js/api.js"></script>
-<script type="module" src="/assets/js/app.js"></script>
+<script type="module" src="/assets/js/app.js?v=2"></script>
 </body>
 </html>

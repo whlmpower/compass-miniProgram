@@ -612,6 +612,7 @@ $('openPrivacy').addEventListener('click', () => openMask('privacyMask'));
 $('closePrivacy').addEventListener('click', () => closeMask('privacyMask'));
 $('openSample').addEventListener('click', async () => {
   await fillSample();
+  switchSampleTab('report');
   openMask('sampleMask');
 });
 $('closeSample').addEventListener('click', () => closeMask('sampleMask'));
@@ -624,8 +625,12 @@ $('closeSample').addEventListener('click', () => closeMask('sampleMask'));
 // ---------- 样例数据（固化到 web/samples/） ----------
 async function fillSample() {
   try {
-    const r = await fetch('/samples/shanda.json');
-    const s = await r.json();
+    const [jr, dr, rr] = await Promise.all([
+      fetch('/samples/shanda.json'),
+      fetch('/samples/shanda-dialogue.html'),
+      fetch('/samples/shanda-report.html'),
+    ]);
+    const s = await jr.json();
     $('sampleCardTitle').textContent = s.title;
     $('sampleCardMeta').textContent = s.meta;
     const cp = $('sampleCardPoints');
@@ -637,24 +642,33 @@ async function fillSample() {
     });
     $('sampleModalTitle').textContent = s.title;
     $('sampleModalMeta').textContent = s.meta;
-    const dlg = $('sampleModalDialogue');
-    dlg.innerHTML = '';
-    (s.dialogue || []).forEach((m) => {
-      const p = document.createElement('p');
-      p.textContent = (m.role === 'assistant' || m.role === 'ai' ? '罗：' : '用户：') + m.text;
-      dlg.appendChild(p);
-    });
-    const con = $('sampleModalConclusion');
-    con.innerHTML = '';
-    (s.conclusion || []).forEach((c) => {
-      const p = document.createElement('p');
-      p.textContent = c;
-      con.appendChild(p);
-    });
+    // 对话节选 & 诊断报告：直接注入预生成的静态 HTML 片段（已用 H5 token 排版）
+    $('sampleModalDialogue').innerHTML = await dr.text();
+    $('sampleModalReport').innerHTML = await rr.text();
   } catch {
     /* 忽略 */
   }
 }
+
+// 样例弹层 Tab 切换：对话节选 / 诊断报告
+function switchSampleTab(which) {
+  document.querySelectorAll('.sample-tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === which));
+  $('sampleDlgPanel').hidden = which !== 'dlg';
+  $('sampleReportPanel').hidden = which !== 'report';
+  const btn = $('sampleSwitchBtn');
+  if (btn) btn.textContent = which === 'dlg' ? '查看报告样例' : '查看对话节选';
+  // 切换后回到弹窗顶部，方便用户从头阅读
+  const modalEl = document.querySelector('#sampleMask .modal');
+  if (modalEl) modalEl.scrollTop = 0;
+}
+document.querySelectorAll('.sample-tab').forEach((tab) => {
+  tab.addEventListener('click', () => switchSampleTab(tab.dataset.tab));
+});
+// 底部联动按钮：点击切到另一个 Tab，并随当前 Tab 更新文案
+$('sampleSwitchBtn').addEventListener('click', () => {
+  const cur = $('sampleDlgPanel').hidden ? 'report' : 'dlg';
+  switchSampleTab(cur === 'dlg' ? 'report' : 'dlg');
+});
 
 // ---------- 初始化 ----------
 (async () => {
