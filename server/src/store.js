@@ -8,6 +8,7 @@ const sessions = new Map();
 function ensureDirs() {
   fs.mkdirSync(config.sessionsDir, { recursive: true });
   fs.mkdirSync(config.reportsDir, { recursive: true });
+  fs.mkdirSync(config.conversationsDir, { recursive: true });
 }
 
 function loadAll() {
@@ -17,6 +18,11 @@ function loadAll() {
       if (!f.endsWith('.json')) continue;
       try {
         const s = JSON.parse(fs.readFileSync(path.join(config.sessionsDir, f), 'utf8'));
+        // 跳过无 id / id 非法的脏数据，避免 undefined 等会话污染内存并指向空壳文件
+        if (!s || typeof s.id !== 'string' || s.id.length < 8) {
+          fs.unlinkSync(path.join(config.sessionsDir, f));
+          continue;
+        }
         sessions.set(s.id, s);
       } catch {
         /* corrupt file, ignore */
@@ -27,22 +33,44 @@ function loadAll() {
   }
 }
 
-export function createSession(referencer = 'general') {
+export function createSession(referencer = 'general', phone = null) {
   const id = crypto.randomUUID();
   const s = {
     id,
+    phone, // 归属用户手机号（v2 鉴权后必填，用于恢复历史与会话隔离）
     createdAt: Date.now(),
     status: 'collecting', // collecting | reported
     referencer,
-    adEntryUnlocked: false,
-    adDownloadUnlocked: false,
     messages: [],
     report: null,
     postReportTurns: 0,
+    conversationFile: null, // 对话整理 HTML 路径（用户确认需要后生成）
+    conversationReady: false,
   };
   sessions.set(id, s);
   persist(s);
   return s;
+}
+
+// 返回该用户最近一个「有效」会话：reported 会话在 reportTtlHours 内有效；
+// collecting 会话在 abandonTtlDays 内有效。无则 null。
+export function getLatestValidSessionForPhone(phone) {
+  const now = Date.now();
+  const ttl = config.reportTtlHours * 3600 * 1000;
+  const abandonTtl = config.abandonTtlDays * 24 * 3600 * 1000;
+  let best = null;
+  for (const s of sessions.values()) {
+    if (!phone || s.phone !== phone) continue;
+    let valid;
+    if (s.status === 'reported' && s.report) {
+      valid = now - s.report.generatedAt <= ttl;
+    } else {
+      valid = now - s.createdAt <= abandonTtl;
+    }
+    if (!valid) continue;
+    if (!best || s.createdAt > best.createdAt) best = s;
+  }
+  return best;
 }
 
 export function getSession(id) {
@@ -50,7 +78,7 @@ export function getSession(id) {
 }
 
 export function persist(s) {
-  fs.writeFileSync(path.join(config.sessionsDir, `${s.id}.json`), JSON.stringify(s));
+  fs.writeFileSync(path.join(config.sessionsDir, `${s.id}.json`), JSON.stringify(s), { mode: 0o600 });
 }
 
 export function addMessage(s, role, content) {
@@ -60,10 +88,16 @@ export function addMessage(s, role, content) {
 
 export function setReport(s, markdown, html) {
   s.status = 'reported';
-  s.report = { markdown, html, generatedAt: Date.now() };
+  s.report = { markdown, html: html || '', generatedAt: Date.now() };
   s.postReportTurns = 0;
   persist(s);
-  fs.writeFileSync(path.join(config.reportsDir, `${s.id}.html`), html);
+}
+
+// 标记对话整理 HTML 已生成（文件由调用方写入 conversationsDir）
+export function setConversation(s, filePath) {
+  s.conversationFile = filePath;
+  s.conversationReady = true;
+  persist(s);
 }
 
 // 隐私清理：报告生成后保留 reportTtlHours，超时删对话+报告；长期未报告(abandon)的会话按 abandonTtlDays 删
@@ -85,10 +119,12 @@ export function cleanup() {
       } catch {
         /* ignore */
       }
-      try {
-        fs.unlinkSync(path.join(config.reportsDir, `${id}.html`));
-      } catch {
-        /* ignore */
+      if (s.conversationFile) {
+        try {
+          fs.unlinkSync(s.conversationFile);
+        } catch {
+          /* ignore */
+        }
       }
     }
   }

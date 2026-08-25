@@ -6,10 +6,14 @@
   "description": "职业罗盘 H5 后端：驱动职业自我认知诊断对话、生成可下载报告",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "node --watch src/index.js"
+    "dev": "node --watch src/index.js",
+    "test": "LLM_MOCK=true ADMIN_PHONE=13800000001 ADMIN_PASSWORD=admin123456 JWT_SECRET=test node --test test/"
   },
   "dependencies": {
     "cors": "^2.8.5",
-    "express": "^4.19.2"
+    "dompurify": "^3.4.14",
+    "dotenv": "^17.4.2",
+    "express": "^4.19.2",
+    "marked": "^12.0.2"
   }
 }

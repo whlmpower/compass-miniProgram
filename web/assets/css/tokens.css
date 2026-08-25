@@ -1,0 +1,53 @@
+/* ===== 设计语言 token：宣纸米白 / 墨黑 / 黛蓝 / 宋黑字体 / 宣纸噪点 ===== */
+:root{
+  --paper:#F4F0E7;        /* 宣纸米白 */
+  --paper-2:#EDE8DC;      /* 略深纸面 */
+  --paper-3:#E4DDCD;      /* 卡片底 */
+  --ink:#1F1E1A;          /* 墨黑 */
+  --ink-2:#4A4640;        /* 次级文字 */
+  --ink-3:#8C8678;        /* 弱化说明 */
+  --indigo:#2B3A5E;       /* 黛蓝 */
+  --indigo-2:#3A4E7A;
+  --indigo-tint:rgba(43,58,94,0.07);
+  --line:rgba(31,30,26,0.13);
+  --line-2:rgba(31,30,26,0.26);
+  --serif:"Noto Serif SC", "Songti SC", "STSong", serif;
+  --sans:"Noto Sans SC", -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --shadow:0 24px 70px rgba(31,30,26,0.14);
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;}
+body{
+  font-family:var(--sans);
+  font-weight:400;
+  color:var(--ink);
+  background:var(--paper);
+  line-height:1.75;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+  position:relative;
+}
+/* 宣纸噪点纹理 —— 贯穿全站的质感签名 */
+body::before{
+  content:"";
+  position:fixed;inset:0;
+  pointer-events:none;
+  z-index:9999;
+  opacity:0.05;
+  mix-blend-mode:multiply;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+/* 桌面端：居中纸页 + 微投影，隐喻一本摊开的小册 */
+.app{
+  max-width:540px;
+  margin:0 auto;
+  min-height:100vh;
+  background:var(--paper);
+  position:relative;
+  box-shadow:var(--shadow);
+  overflow-x:hidden;
+}
+@media(min-width:600px){
+  body{padding:28px 0;background:var(--paper-2);}
+  .app{min-height:calc(100vh - 56px);border-radius:2px;}
+}

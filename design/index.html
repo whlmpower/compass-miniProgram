@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>职业罗盘 · 设计稿</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&family=Noto+Sans+SC:wght@300;400;500&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --paper:#F4F0E7;        /* 宣纸米白 */
+    --paper-2:#EDE8DC;      /* 略深纸面 */
+    --paper-3:#E4DDCD;      /* 卡片底 */
+    --ink:#1F1E1A;          /* 墨黑 */
+    --ink-2:#4A4640;        /* 次级文字 */
+    --ink-3:#8C8678;        /* 弱化说明 */
+    --indigo:#2B3A5E;       /* 黛蓝 */
+    --indigo-2:#3A4E7A;
+    --indigo-tint:rgba(43,58,94,0.07);
+    --line:rgba(31,30,26,0.13);
+    --line-2:rgba(31,30,26,0.26);
+    --serif:"Noto Serif SC", "Songti SC", "STSong", serif;
+    --sans:"Noto Sans SC", -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    --shadow:0 24px 70px rgba(31,30,26,0.14);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    font-family:var(--sans);
+    font-weight:400;
+    color:var(--ink);
+    background:var(--paper);
+    line-height:1.75;
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+    position:relative;
+  }
+  /* 宣纸噪点纹理 —— 贯穿全站的质感签名 */
+  body::before{
+    content:"";
+    position:fixed;inset:0;
+    pointer-events:none;
+    z-index:9999;
+    opacity:0.05;
+    mix-blend-mode:multiply;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  /* 桌面端：居中纸页 + 微投影，隐喻一本摊开的小册 */
+  .app{
+    max-width:540px;
+    margin:0 auto;
+    min-height:100vh;
+    background:var(--paper);
+    position:relative;
+    box-shadow:var(--shadow);
+    overflow-x:hidden;
+  }
+  @media(min-width:600px){
+    body{padding:28px 0;background:var(--paper-2);}
+    .app{min-height:calc(100vh - 56px);border-radius:2px;}
+  }
+
+  /* ---------- 顶部刊头 ---------- */
+  .topbar{
+    position:sticky;top:0;z-index:50;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:18px 26px;
+    background:rgba(244,240,231,0.86);
+    backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--line);
+  }
+  .brand{display:flex;align-items:center;gap:11px;}
+  .seal{
+    width:30px;height:30px;border-radius:5px;
+    background:var(--indigo);
+    color:var(--paper);
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--serif);font-weight:600;font-size:15px;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,0.16);
+  }
+  .brand-name{font-family:var(--serif);font-weight:600;font-size:17px;letter-spacing:0.04em;}
+  .brand-sub{font-size:10px;color:var(--ink-3);letter-spacing:0.22em;margin-top:1px;}
+  .nav{display:flex;gap:18px;}
+  .nav a{
+    font-size:13px;color:var(--ink-2);text-decoration:none;position:relative;
+  }
+  .nav a::after{
+    content:"";position:absolute;left:0;bottom:-4px;height:1px;width:0;background:var(--indigo);
+    transition:width .35s ease;
+  }
+  .nav a:hover{color:var(--ink);}
+  .nav a:hover::after{width:100%;}
+  .nav .hide-sm{ }
+  @media(max-width:480px){.nav .hide-sm{display:none;}}
+
+  /* ---------- 视图 ---------- */
+  .view{display:none;padding:0 26px 90px;animation:fade .5s ease both;}
+  .view.active{display:block;}
+
+  /* 入场错落淡入 */
+  .r{opacity:0;transform:translateY(14px);}
+  .view.show .r{animation:rise .8s cubic-bezier(.2,.7,.2,1) both;animation-delay:calc(var(--i,0) * 75ms);}
+  @keyframes rise{to{opacity:1;transform:none;}}
+  @keyframes fade{from{opacity:0}to{opacity:1}}
+
+  /* ---------- 刊物式栏目标题 ---------- */
+  .sec-head{display:flex;align-items:center;gap:14px;margin:46px 0 20px;}
+  .sec-num{font-family:var(--serif);font-size:14px;color:var(--indigo);font-weight:600;letter-spacing:0.05em;}
+  .sec-line{flex:1;height:1px;background:var(--line-2);}
+  .sec-head h2{font-family:var(--serif);font-weight:600;font-size:19px;letter-spacing:0.02em;}
+
+  h1.hero{
+    font-family:var(--serif);font-weight:600;
+    font-size:clamp(2.1rem,9vw,2.9rem);
+    line-height:1.32;letter-spacing:-0.01em;
+    margin-top:34px;
+  }
+  .hero .accent{color:var(--indigo);}
+  .lede{font-size:15px;color:var(--ink-2);max-width:30em;margin-top:18px;font-weight:300;}
+  .kicker{font-size:11px;letter-spacing:0.34em;color:var(--ink-3);text-transform:uppercase;margin-top:30px;}
+
+  p.body{font-size:14.5px;color:var(--ink-2);margin:14px 0;font-weight:300;}
+  p.body strong{color:var(--ink);font-weight:500;}
+
+  /* 样例卡片 */
+  .sample-card{
+    border:1px solid var(--line);background:var(--paper-3);
+    padding:22px 22px 18px;margin-top:6px;position:relative;
+    transition:border-color .3s ease, transform .3s ease;
+  }
+  .sample-card:hover{border-color:var(--line-2);transform:translateY(-2px);}
+  .sample-card .tag{
+    position:absolute;top:18px;right:18px;font-size:10px;letter-spacing:0.16em;
+    color:var(--indigo);border:1px solid var(--indigo);padding:3px 8px;border-radius:2px;
+  }
+  .sample-card h3{font-family:var(--serif);font-size:17px;font-weight:600;margin-bottom:6px;}
+  .sample-card .meta{font-size:12px;color:var(--ink-3);margin-bottom:12px;}
+  .sample-card ul{list-style:none;margin:8px 0 14px;}
+  .sample-card li{font-size:13px;color:var(--ink-2);padding-left:16px;position:relative;margin:7px 0;font-weight:300;}
+  .sample-card li::before{content:"";position:absolute;left:0;top:9px;width:6px;height:1px;background:var(--indigo);}
+
+  /* 链接式按钮 */
+  .link-btn{
+    background:none;border:none;color:var(--indigo);font-family:var(--sans);
+    font-size:13.5px;cursor:pointer;padding:0;position:relative;
+  }
+  .link-btn::after{content:"";position:absolute;left:0;bottom:-3px;height:1px;width:100%;background:var(--indigo);transform:scaleX(0);transform-origin:left;transition:transform .35s ease;}
+  .link-btn:hover::after{transform:scaleX(1);}
+
+  /* 实心主按钮 */
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    font-family:var(--sans);font-size:14.5px;font-weight:400;
+    padding:14px 30px;border-radius:3px;cursor:pointer;border:1px solid var(--ink);
+    background:var(--ink);color:var(--paper);
+    transition:background .3s ease, transform .2s ease, box-shadow .3s ease;
+    text-decoration:none;letter-spacing:0.04em;
+  }
+  .btn:hover{background:var(--indigo);border-color:var(--indigo);transform:translateY(-1px);box-shadow:0 10px 24px rgba(43,58,94,0.22);}
+  .btn.block{width:100%;}
+  .btn.ghost{background:transparent;color:var(--ink);}
+  .btn.ghost:hover{background:var(--ink);color:var(--paper);box-shadow:none;}
+  .btn:disabled{opacity:0.4;cursor:not-allowed;transform:none;box-shadow:none;}
+
+  /* 隐私弹层 */
+  .modal-mask{position:fixed;inset:0;background:rgba(31,30,26,0.4);backdrop-filter:blur(3px);z-index:200;display:none;align-items:flex-end;}
+  .modal-mask.open{display:flex;}
+  @media(min-width:600px){.modal-mask.open{align-items:center;}}
+  .modal{
+    background:var(--paper);width:100%;max-width:540px;margin:0 auto;
+    max-height:84vh;overflow-y:auto;border-radius:6px 6px 0 0;
+    padding:30px 28px 34px;box-shadow:var(--shadow);
+    animation:rise .5s ease both;
+  }
+  @media(min-width:600px){.modal{border-radius:6px;}}
+  .modal h3{font-family:var(--serif);font-size:20px;font-weight:600;margin-bottom:4px;}
+  .modal .close{float:right;font-size:22px;color:var(--ink-3);cursor:pointer;line-height:1;background:none;border:none;}
+  .modal h4{font-family:var(--serif);font-size:15px;margin:20px 0 6px;color:var(--ink);}
+  .modal p{font-size:13.5px;color:var(--ink-2);font-weight:300;margin:6px 0;}
+
+  /* ---------- 登录页 ---------- */
+  .auth-wrap{max-width:380px;margin:0 auto;padding-top:30px;}
+  .auth-wrap h1{font-family:var(--serif);font-size:30px;font-weight:600;margin-bottom:8px;}
+  .auth-wrap .sub{font-size:13px;color:var(--ink-3);margin-bottom:30px;font-weight:300;}
+  .field{margin-bottom:20px;}
+  .field label{display:block;font-size:12px;color:var(--ink-2);letter-spacing:0.06em;margin-bottom:8px;}
+  .field input{
+    width:100%;font-family:var(--sans);font-size:15px;color:var(--ink);
+    background:transparent;border:none;border-bottom:1px solid var(--line-2);
+    padding:10px 2px;outline:none;transition:border-color .3s ease;
+  }
+  .field input:focus{border-color:var(--indigo);}
+  .field input::placeholder{color:var(--ink-3);font-weight:300;}
+  .captcha-row{display:flex;gap:12px;align-items:flex-end;}
+  .captcha-row .field{flex:1;margin-bottom:0;}
+  .captcha-box{
+    width:120px;height:46px;flex:none;cursor:pointer;border:1px solid var(--line);
+    background:var(--paper-3);border-radius:3px;overflow:hidden;position:relative;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .captcha-box svg{display:block;}
+  .captcha-box .refresh{position:absolute;right:5px;bottom:4px;font-size:10px;color:var(--ink-3);}
+  .err{font-size:12.5px;color:#9a3b2e;min-height:18px;margin:6px 0 14px;font-weight:300;}
+
+  /* 隐私协议勾选 */
+  .agree{display:flex;align-items:flex-start;gap:10px;margin:2px 0 20px;font-size:13px;color:var(--ink-2);font-weight:300;}
+  .agree-check{display:inline-flex;cursor:pointer;margin-top:1px;}
+  .agree input{position:absolute;opacity:0;width:0;height:0;}
+  .agree .box{width:18px;height:18px;flex:none;border:1px solid var(--line-2);border-radius:3px;display:flex;align-items:center;justify-content:center;transition:border-color .25s ease,background .25s ease;}
+  .agree input:checked + .box{background:var(--indigo);border-color:var(--indigo);}
+  .agree .box svg{width:11px;height:11px;opacity:0;transition:opacity .2s ease;}
+  .agree input:checked + .box svg{opacity:1;}
+  .agree-text{line-height:1.5;}
+  .agree-text a{color:var(--indigo);text-decoration:none;position:relative;}
+  .agree-text a::after{content:"";position:absolute;left:0;bottom:-2px;height:1px;width:100%;background:var(--indigo);transform:scaleX(0);transform-origin:left;transition:transform .3s ease;}
+  .agree-text a:hover::after{transform:scaleX(1);}
+  .auth-note{font-size:11.5px;color:var(--ink-3);margin-top:22px;line-height:1.7;font-weight:300;text-align:center;}
+
+  /* ---------- Admin ---------- */
+  .admin-head{display:flex;align-items:flex-end;justify-content:space-between;margin:30px 0 6px;}
+  .admin-head .who{font-size:12px;color:var(--ink-3);}
+  .admin-head .who b{color:var(--ink);font-weight:500;}
+  .gen-box{border:1px solid var(--line);background:var(--paper-3);padding:20px;margin-top:8px;}
+  .gen-box .field{margin-bottom:14px;}
+  .pw-out{
+    display:none;margin-top:8px;padding:16px;border:1px dashed var(--indigo);
+    background:var(--indigo-tint);align-items:center;justify-content:space-between;
+  }
+  .pw-out.show{display:flex;}
+  .pw-out .code{font-family:var(--serif);font-size:22px;letter-spacing:0.18em;color:var(--indigo);}
+  table.users{width:100%;border-collapse:collapse;margin-top:10px;font-size:13px;}
+  table.users th{
+    text-align:left;font-family:var(--serif);font-weight:600;font-size:12px;color:var(--ink-2);
+    padding:10px 8px;border-bottom:1px solid var(--line-2);letter-spacing:0.03em;
+  }
+  table.users td{padding:11px 8px;border-bottom:1px solid var(--line);color:var(--ink-2);font-weight:300;}
+  table.users tr:hover td{background:var(--paper-3);}
+  .st{font-size:11px;padding:2px 8px;border-radius:2px;letter-spacing:0.05em;}
+  .st.unused{color:var(--indigo);background:var(--indigo-tint);}
+  .st.used{color:var(--ink-3);background:var(--paper-3);}
+  .st.expired{color:#9a3b2e;background:rgba(154,59,46,0.08);}
+  .mini-btn{font-size:12px;color:var(--indigo);background:none;border:1px solid var(--line-2);padding:4px 10px;border-radius:2px;cursor:pointer;transition:.25s;}
+  .mini-btn:hover{background:var(--indigo);color:var(--paper);border-color:var(--indigo);}
+
+  /* ---------- 诊断对话 ---------- */
+  .chat-top{display:flex;align-items:center;justify-content:space-between;padding:20px 0 14px;border-bottom:1px solid var(--line);}
+  .chat-top .title{font-family:var(--serif);font-size:16px;font-weight:600;}
+  .chat-top .phase{font-size:11px;color:var(--ink-3);letter-spacing:0.08em;}
+  .phase-tag{font-size:10.5px;color:var(--indigo);border:1px solid var(--indigo);padding:2px 7px;border-radius:2px;}
+  .msgs{padding:22px 0;min-height:200px;}
+  .msg{display:flex;margin-bottom:18px;gap:10px;}
+  .msg .av{flex:none;width:26px;height:26px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-family:var(--serif);font-size:12px;}
+  .msg.ai .av{background:var(--indigo);color:var(--paper);}
+  .msg.me .av{background:var(--ink);color:var(--paper);order:2;}
+  .msg .bubble{max-width:78%;padding:12px 15px;font-size:14px;line-height:1.7;font-weight:300;}
+  .msg.ai .bubble{background:var(--paper-3);color:var(--ink);border:1px solid var(--line);border-radius:3px 12px 12px 12px;}
+  .msg.me{justify-content:flex-end;}
+  .msg.me .bubble{background:var(--ink);color:var(--paper);border-radius:12px 3px 12px 12px;}
+  .typing{font-size:12px;color:var(--ink-3);font-style:italic;padding:4px 0 0 36px;}
+  .composer{position:sticky;bottom:0;background:rgba(244,240,231,0.95);backdrop-filter:blur(8px);padding:14px 0 18px;border-top:1px solid var(--line);}
+  .counter{font-size:11px;color:var(--ink-3);text-align:right;margin-bottom:8px;}
+  .counter.warn{color:#9a3b2e;}
+  .ta{
+    width:100%;font-family:var(--sans);font-size:14.5px;color:var(--ink);background:transparent;
+    border:1px solid var(--line-2);border-radius:4px;padding:12px;resize:none;outline:none;
+    min-height:58px;max-height:140px;transition:border-color .3s ease;line-height:1.6;font-weight:300;
+  }
+  .ta:focus{border-color:var(--indigo);}
+  .composer-row{display:flex;gap:10px;margin-top:10px;align-items:center;}
+  .composer-row .btn{padding:12px 22px;font-size:14px;}
+  .composer-row .spacer{flex:1;}
+  .locked-note{font-size:13px;color:var(--ink-3);text-align:center;padding:18px;border:1px dashed var(--line-2);border-radius:4px;font-weight:300;}
+  .report-cta{margin:8px 0 4px;}
+
+  /* ---------- 报告 ---------- */
+  .report{border-top:3px solid var(--indigo);padding-top:22px;}
+  .report .doc-label{font-size:11px;letter-spacing:0.3em;color:var(--indigo);text-transform:uppercase;}
+  .report h1{font-family:var(--serif);font-size:25px;font-weight:600;margin:10px 0 4px;}
+  .report .doc-meta{font-size:12px;color:var(--ink-3);margin-bottom:8px;}
+  .report .conf{font-size:11.5px;color:var(--ink-3);background:var(--paper-3);padding:10px 14px;border-left:2px solid var(--indigo);margin:14px 0 24px;font-weight:300;}
+  .report h2{font-family:var(--serif);font-size:18px;font-weight:600;margin:26px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--line-2);}
+  .report h3{font-family:var(--serif);font-size:15px;font-weight:600;margin:16px 0 6px;color:var(--indigo);}
+  .report p{font-size:14px;color:var(--ink-2);margin:8px 0;font-weight:300;}
+  .report .dim{display:flex;gap:12px;margin:12px 0;align-items:flex-start;}
+  .report .dim .k{flex:none;width:84px;font-family:var(--serif);font-size:13.5px;font-weight:600;color:var(--ink);padding-top:1px;}
+  .report .dim .v{flex:1;font-size:13.5px;color:var(--ink-2);font-weight:300;}
+  .report .bar{height:4px;background:var(--paper-3);border-radius:2px;margin-top:5px;overflow:hidden;}
+  .report .bar i{display:block;height:100%;background:var(--indigo);}
+  .report .download-bar{position:sticky;bottom:0;background:rgba(244,240,231,0.95);backdrop-filter:blur(8px);padding:14px 0;border-top:1px solid var(--line);margin-top:30px;}
+
+  .footnote{margin-top:54px;padding-top:20px;border-top:1px solid var(--line);font-size:11.5px;color:var(--ink-3);font-weight:300;line-height:1.8;}
+  .center{text-align:center;}
+  .mt30{margin-top:30px;}
+  .mt20{margin-top:20px;}
+  .gap18{display:flex;gap:14px;flex-wrap:wrap;align-items:center;}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ 顶部刊头 ============ -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="seal">罗</div>
+      <div>
+        <div class="brand-name">职业罗盘</div>
+        <div class="brand-sub">CAREER&nbsp;COMPASS</div>
+      </div>
+    </div>
+    <nav class="nav">
+      <a href="#" data-go="home" class="hide-sm">首页</a>
+      <a href="#" data-go="login">登录</a>
+      <a href="#" id="navAdmin" data-go="admin" class="hide-sm">管理</a>
+    </nav>
+  </header>
+
+  <!-- ============ 视图 1：首页 ============ -->
+  <section class="view active" id="view-home">
+    <div class="kicker r" style="--i:0">职业自我认知 · 多参照系诊断</div>
+    <h1 class="hero r" style="--i:1">在选择的路口，<br/>先<span class="accent">认识自己</span>。</h1>
+    <p class="lede r" style="--i:2">不是告诉你该去哪，而是帮你把"大厂、国企、体制内、外企、创业"这几条路，放回你自己的价值观坐标系里，看清真正在拉扯你的东西。</p>
+
+    <div class="sec-head r" style="--i:3"><span class="sec-num">01</span><span class="sec-line"></span><h2>设计理念</h2></div>
+    <p class="body r" style="--i:4"><strong>不做测试，也不给标准答案。</strong>职业罗盘建立在一套明确的分析框架上：六个心理学维度（安全感、成就感、自主、关系、意义、成长）构成你的价值坐标系，六条现实参照系（大厂、国企、体制内、外企、创业、考研／就业）提供对照的镜子。</p>
+    <p class="body r" style="--i:5">诊断的本质，是把"模糊的纠结"翻译成"可看清的结构"——让你看到的，是你自己的处境，而不是别人的建议。</p>
+
+    <div class="sec-head r" style="--i:6"><span class="sec-num">02</span><span class="sec-line"></span><h2>诊断样例</h2></div>
+    <p class="body r" style="--i:7">一份真实的脱敏报告，看看它能带你看到什么。</p>
+    <div class="sample-card r" style="--i:8">
+      <span class="tag">脱敏样例</span>
+      <h3>山大班长 · 外企技术 vs 回国企</h3>
+      <div class="meta">参照系：外企 / 国企　·　核心矛盾：自主 vs 安稳</div>
+      <ul>
+        <li>表面在比"薪资与稳定"，深层在比"谁更像我自己"</li>
+        <li>六个维度中，自主与意义严重错位</li>
+        <li>参照系对比显示：回国企缓解焦虑，但放大存在感空洞</li>
+      </ul>
+      <button class="link-btn" id="openSample">阅读完整样例 →</button>
+    </div>
+
+    <div class="sec-head r" style="--i:9"><span class="sec-num">03</span><span class="sec-line"></span><h2>诊断方式</h2></div>
+    <p class="body r" style="--i:10"><strong>它怎么进行：一段对话，不是填表。</strong>你每说一句，下一句提问就跟着你走；大约十几轮、十几分钟，覆盖你的处境与矛盾，结束你会得到一份结构化的诊断报告。</p>
+    <p class="body r" style="--i:11">你写下的每一句，只为你这次诊断存在——<span style="color:var(--indigo)">对话与报告 24 小时后自动消失</span>，不留底稿。</p>
+
+    <div class="sec-head r" style="--i:12"><span class="sec-num">04</span><span class="sec-line"></span><h2>隐私与安全</h2></div>
+    <p class="body r" style="--i:13">我们采集完成诊断所需的必要信息（手机号、对话内容），但坚持"用完即删"：对话与报告 24 小时自动清除，账号密码以哈希存储，不留存明文。<button class="link-btn" id="openPrivacy">查看隐私协议 →</button></p>
+
+    <div class="sec-head r" style="--i:14"><span class="sec-num">05</span><span class="sec-line"></span><h2>怎么开始</h2></div>
+    <p class="body r" style="--i:15">职业罗盘为封闭分发，账号由管理员创建后线下发放。如果你还没有账号，请联系为你提供账号的管理员；登录后，即可开始一次诊断。</p>
+
+    <div class="r mt30" style="--i:16">
+      <button class="btn block" data-go="login">开始诊断</button>
+    </div>
+
+    <div class="footnote r" style="--i:17">
+      职业罗盘 · 设计原型　|　本站为视觉设计稿，交互为示意。
+    </div>
+  </section>
+
+  <!-- ============ 视图 2：登录 ============ -->
+  <section class="view" id="view-login">
+    <div class="auth-wrap">
+      <div class="kicker r" style="--i:0">ACCOUNT&nbsp;LOGIN</div>
+      <h1 class="r" style="--i:1">登录</h1>
+      <p class="sub r" style="--i:2">手机号 + 图形验证码 + 密码，三要素验证。</p>
+
+      <div class="field r" style="--i:3">
+        <label>手机号</label>
+        <input id="phone" type="tel" inputmode="numeric" maxlength="11" placeholder="请输入管理员发放的手机号" />
+      </div>
+
+      <div class="field r" style="--i:4">
+        <label>图形验证码</label>
+        <div class="captcha-row">
+          <div class="field">
+            <input id="captchaInput" type="text" maxlength="4" placeholder="输入右图字符" style="text-transform:uppercase" />
+          </div>
+          <div class="captcha-box" id="captchaBox" title="点击刷新">
+            <span id="captchaSvg"></span>
+            <span class="refresh">↻</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="field r" style="--i:5">
+        <label>密码</label>
+        <input id="password" type="password" maxlength="10" placeholder="10 位账号密码" />
+      </div>
+
+      <div class="err r" style="--i:6" id="loginErr"></div>
+
+      <div class="agree r" style="--i:7">
+        <label class="agree-check" for="agreeChk">
+          <input type="checkbox" id="agreeChk" />
+          <span class="box"><svg viewBox="0 0 12 12"><path d="M2 6.4 L4.8 9 L10 3" fill="none" stroke="#F4F0E7" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        </label>
+        <span class="agree-text">我已阅读并同意<a href="#" id="agreePrivacy">《隐私协议》</a></span>
+      </div>
+
+      <button class="btn block r" style="--i:8" id="loginBtn" disabled>登 录</button>
+
+      <p class="auth-note r" style="--i:9">本产品为封闭分发模式，账号与密码由管理员统一创建并线下发放。<br/>同一手机号 24 小时内最多失败 5 次；同一网络 24 小时内最多失败 10 次。</p>
+    </div>
+  </section>
+
+  <!-- ============ 视图 3：Admin 后台 ============ -->
+  <section class="view" id="view-admin">
+    <div class="admin-head">
+      <div>
+        <div class="kicker" style="margin-top:0">ADMIN&nbsp;CONSOLE</div>
+        <h1 style="font-family:var(--serif);font-size:24px;font-weight:600;margin-top:4px;">用户管理</h1>
+      </div>
+      <div class="who">当前管理员　<b id="adminPhone">138****0000</b>　·　<a href="#" class="link-btn" data-go="home">退出</a></div>
+    </div>
+
+    <div class="sec-head"><span class="sec-num">A</span><span class="sec-line"></span><h2>生成账号密码</h2></div>
+    <div class="gen-box">
+      <div class="field">
+        <label>用户手机号</label>
+        <input id="genPhone" type="tel" inputmode="numeric" maxlength="11" placeholder="输入要创建的手机号" />
+      </div>
+      <button class="btn" id="genBtn">生成密码</button>
+      <div class="pw-out" id="pwOut">
+        <div>
+          <div style="font-size:11px;color:var(--ink-3);letter-spacing:0.1em;">账号密码（24 小时内有效）</div>
+          <div class="code" id="pwCode">A3K9M2Q7B1</div>
+        </div>
+        <button class="mini-btn" id="copyPw">复制</button>
+      </div>
+    </div>
+
+    <div class="sec-head"><span class="sec-num">B</span><span class="sec-line"></span><h2>已创建用户</h2></div>
+    <table class="users">
+      <thead>
+        <tr><th>手机号</th><th>状态</th><th>生成时间</th><th>过期</th><th>操作</th></tr>
+      </thead>
+      <tbody id="userRows">
+        <tr><td>138****1024</td><td><span class="st unused">未使用</span></td><td>08-22 14:10</td><td>08-23 14:10</td><td><button class="mini-btn" onclick="alert('示意：重新生成并覆盖')">重生成</button></td></tr>
+        <tr><td>139****7788</td><td><span class="st used">已使用</span></td><td>08-21 09:32</td><td>08-22 09:32</td><td><button class="mini-btn" onclick="alert('示意：查看会话')">会话</button></td></tr>
+        <tr><td>137****3344</td><td><span class="st expired">已过期</span></td><td>08-20 20:01</td><td>08-21 20:01</td><td><button class="mini-btn" onclick="alert('示意：重新生成')">重生成</button></td></tr>
+      </tbody>
+    </table>
+    <div class="footnote">密码有效期为登录成功后 24 小时；过期后由管理员对该手机号重新生成覆盖。失败计数：同手机号 24h≤5 次、同 IP 24h≤10 次。</div>
+  </section>
+
+  <!-- ============ 视图 4：诊断对话 ============ -->
+  <section class="view" id="view-chat">
+    <div class="chat-top">
+      <div class="title">职业诊断对话</div>
+      <div class="phase" id="phaseLabel">诊断进行中</div>
+    </div>
+    <div id="phaseTagWrap" style="margin:10px 0 0;"></div>
+
+    <div class="msgs" id="msgs">
+      <div class="msg ai"><div class="av">罗</div><div class="bubble">你好，我是职业罗盘。接下来我会用几个问题，陪你把自己看清楚。先说说，最近是什么让你开始认真想"职业方向"这件事？</div></div>
+    </div>
+
+    <div class="composer">
+      <div class="counter" id="counter">0 / 5000</div>
+      <textarea class="ta" id="ta" placeholder="写下你的回答（每轮最多 5000 字）…"></textarea>
+      <div class="composer-row" id="composerRow">
+        <button class="btn ghost" id="genReportBtn" style="display:none;">生成报告</button>
+        <div class="spacer"></div>
+        <button class="btn" id="sendBtn">发送</button>
+      </div>
+      <div id="lockedWrap" style="display:none;">
+        <div class="locked-note">本账号追问轮次已用尽（共 10 轮）。报告可在 24 小时内重复查看与下载，超时将自动删除。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 视图 5：报告预览 ============ -->
+  <section class="view" id="view-report">
+    <div class="report">
+      <div class="doc-label">CONFIDENTIAL · 职业诊断报告</div>
+      <h1>山大班长 · 职业自我认知诊断</h1>
+      <div class="doc-meta">参照系：外企技术 / 回国企　·　诊断于 2026-08-22　·　编号 CC-20260822-0471</div>
+      <div class="conf">本报告由对话生成，仅用于自我认知参考，不构成职业决策建议。对话原文与报告将在 24 小时后自动删除，服务端不留存。</div>
+
+      <h2>一、核心矛盾</h2>
+      <p>表面议题是"外企技术岗 vs 回国企"，但六个维度穿透后，真正的拉扯是 <strong>自主感</strong> 与 <strong>安全感</strong> 的冲突——你并非在两份工作间犹豫，而是在"成为自己"与"被接纳地活着"之间犹豫。</p>
+
+      <h2>二、六维分析</h2>
+      <div class="dim"><div class="k">安全感</div><div class="v">国企显著缓解生存焦虑；外企提供的是"能力变现"的安全，而非"被体制托住"的安全。<div class="bar"><i style="width:82%"></i></div></div></div>
+      <div class="dim"><div class="k">成就感</div><div class="v">外企的项目制成就感更密集；国企需更长时间才能看到"自己的痕迹"。<div class="bar"><i style="width:64%"></i></div></div></div>
+      <div class="dim"><div class="k">自主性</div><div class="v">这是你最被压抑的维度。回国企后，决定权上移会放大此处的空洞。<div class="bar"><i style="width:38%"></i></div></div></div>
+      <div class="dim"><div class="k">关系</div><div class="v">家庭期望（父母希望稳定）构成强外部拉力，与内在偏好错位。<div class="bar"><i style="width:70%"></i></div></div></div>
+      <div class="dim"><div class="k">意义</div><div class="v">你尚未在任何一条路上建立稳定的意义锚点，这是犹豫的底层原因。<div class="bar"><i style="width:45%"></i></div></div></div>
+      <div class="dim"><div class="k">成长</div><div class="v">外企的成长曲线更陡但更不确定；国企的成长更线性。<div class="bar"><i style="width:60%"></i></div></div></div>
+
+      <h2>三、参照系对比</h2>
+      <h3>外企技术</h3>
+      <p>优势：能力定价清晰、成就感密集、自主空间相对大。风险：年龄与不确定性焦虑、意义感易流失。</p>
+      <h3>回国企</h3>
+      <p>优势：安全感与家庭和解。风险：自主与意义被进一步压缩，存在感空洞可能加剧。</p>
+
+      <h2>四、行动建议</h2>
+      <p>1. 先做"自主感"的最小实验（副业 / 内部转岗 / 一段gap），验证离开体制是否真能填补空洞，而非用猜测替自己决定。</p>
+      <p>2. 把"父母的稳定期待"外化为一个可对话的变量，而不是内置的束缚。</p>
+      <p>3. 无论选哪条路，优先补上"意义锚点"——这是两种选择都无法替你完成的功课。</p>
+
+      <div class="download-bar">
+        <button class="btn block" id="downloadBtn">下载报告（PDF / HTML）</button>
+      </div>
+    </div>
+    <div class="footnote">报告生成后保留 24 小时供重复查看与下载，超时服务端自动删除对话与报告文件。</div>
+  </section>
+
+</div>
+
+<!-- 隐私协议弹层 -->
+<div class="modal-mask" id="privacyMask">
+  <div class="modal">
+    <button class="close" id="closePrivacy">×</button>
+    <h3>隐私协议</h3>
+    <p style="color:var(--ink-3);font-size:12px;">最后更新：2026-08-22　·　封闭分发版</p>
+    <h4>一、我们采集什么</h4>
+    <p>为完成诊断，我们收集：① 账号信息（手机号、密码哈希）；② 你在对话中主动输入的职业背景与想法；③ 诊断完成后生成的报告。</p>
+    <h4>二、我们怎么用</h4>
+    <p>仅用于驱动本次诊断对话与生成报告。我们不出售、不共享任何个人数据。</p>
+    <h4>三、我们怎么保护</h4>
+    <p>密码以哈希形式存储，服务端不留存明文。对话与报告存放于服务端，<strong style="color:var(--indigo)">自生成之时起 24 小时后自动删除</strong>。</p>
+    <h4>四、账号有效期</h4>
+    <p>用户密码在登录成功后 24 小时自动失效；管理员账号长期有效。登录失败受滑动窗口限流保护。</p>
+    <h4>五、你的权利</h4>
+    <p>你可随时要求删除本账号相关数据。本产品不含任何形式的广告，亦不接入广告 SDK，故不涉及广告数据采集。</p>
+  </div>
+</div>
+
+<!-- 样例弹层 -->
+<div class="modal-mask" id="sampleMask">
+  <div class="modal">
+    <button class="close" id="closeSample">×</button>
+    <h3>山大班长 · 完整脱敏样例（节选）</h3>
+    <p style="color:var(--ink-3);font-size:12px;">外企技术 5 年，父母希望回国企，自己不甘心。</p>
+    <h4>对话节选</h4>
+    <p>罗：你说"不甘心"，不甘的是回国企本身，还是"被安排"这件事？</p>
+    <p>用户：好像是……如果是我自己选的，回国企我也能接受；但现在是"被迫"。</p>
+    <p>罗：那核心可能不是路，而是"谁在做决定"。我们把这个点记下来。</p>
+    <h4>诊断结论（节选）</h4>
+    <p>自主感是被压抑最深的维度；意义锚点缺失是犹豫的底层。建议先做自主的最小实验，再谈选路。</p>
+    <div class="mt20"><button class="btn" data-go="login">我也要做一次 →</button></div>
+  </div>
+</div>
+
+<script>
+  // ---------- 视图切换 + 入场动画 ----------
+  const views = ['home','login','admin','chat','report'];
+  function go(v){
+    views.forEach(id=>{
+      const el=document.getElementById('view-'+id);
+      el.classList.toggle('active', id===v);
+      if(id===v){ el.classList.remove('show'); void el.offsetWidth; el.classList.add('show'); }
+    });
+    if(v==='chat') renderChatPhase();
+    window.scrollTo(0,0);
+  }
+  document.querySelectorAll('[data-go]').forEach(a=>{
+    a.addEventListener('click',e=>{e.preventDefault();go(a.dataset.go);});
+  });
+
+  // ---------- 图形验证码（SVG） ----------
+  const charset='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 排除易混字符
+  let captchaText='';
+  function genCaptcha(){
+    captchaText='';
+    for(let i=0;i<4;i++) captchaText+=charset[Math.floor(Math.random()*charset.length)];
+    let svg=`<svg width="120" height="46" viewBox="0 0 120 46">`;
+    svg+=`<rect width="120" height="46" fill="#EDE8DC"/>`;
+    // 干扰线
+    for(let i=0;i<3;i++){
+      const y1=Math.random()*46, y2=Math.random()*46;
+      svg+=`<line x1="0" y1="${y1}" x2="120" y2="${y2}" stroke="rgba(43,58,94,0.18)" stroke-width="1"/>`;
+    }
+    for(let i=0;i<4;i++){
+      const x=14+i*26, y=30+Math.random()*6;
+      const rot=(Math.random()*30-15).toFixed(1);
+      const sz=(20+Math.random()*4).toFixed(0);
+      svg+=`<text x="${x}" y="${y}" font-family="Noto Serif SC, serif" font-size="${sz}" font-weight="600" fill="#2B3A5E" transform="rotate(${rot} ${x} ${y})">${captchaText[i]}</text>`;
+    }
+    svg+=`</svg>`;
+    document.getElementById('captchaSvg').innerHTML=svg;
+  }
+  genCaptcha();
+  document.getElementById('captchaBox').addEventListener('click',genCaptcha);
+
+  // ---------- 登录（示意） ----------
+  const agreeChk=document.getElementById('agreeChk');
+  const loginBtn=document.getElementById('loginBtn');
+  agreeChk.addEventListener('change',()=>{ loginBtn.disabled=!agreeChk.checked; });
+  document.getElementById('agreePrivacy').addEventListener('click',e=>{ e.preventDefault(); openMask('privacyMask'); });
+  loginBtn.addEventListener('click',()=>{
+    if(!agreeChk.checked){ document.getElementById('loginErr').textContent='请先阅读并同意隐私协议'; return; }
+    const err=document.getElementById('loginErr');
+    const cap=document.getElementById('captchaInput').value.trim().toUpperCase();
+    if(cap!==captchaText){ err.textContent='图形验证码不正确'; genCaptcha(); document.getElementById('captchaInput').value=''; return; }
+    // 示意：直接以用户身份进入诊断
+    err.textContent='';
+    go('chat');
+  });
+
+  // ---------- Admin 生成密码 ----------
+  function genPassword(){
+    const chars='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz'; // 排除易混
+    const digits='23456789';
+    let pos=Math.floor(Math.random()*10);
+    let arr=Array(10).fill(null);
+    arr[pos]=digits[Math.floor(Math.random()*digits.length)];
+    for(let i=0;i<10;i++) if(arr[i]===null) arr[i]=chars[Math.floor(Math.random()*chars.length)];
+    return arr.join('');
+  }
+  document.getElementById('genBtn').addEventListener('click',()=>{
+    const p=document.getElementById('genPhone').value.trim();
+    if(!/^1\d{10}$/.test(p)){ alert('请输入有效的 11 位手机号'); return; }
+    const pw=genPassword();
+    document.getElementById('pwCode').textContent=pw;
+    document.getElementById('pwOut').classList.add('show');
+  });
+  document.getElementById('copyPw').addEventListener('click',()=>{
+    const t=document.getElementById('pwCode').textContent;
+    navigator.clipboard?.writeText(t);
+    document.getElementById('copyPw').textContent='已复制';
+    setTimeout(()=>document.getElementById('copyPw').textContent='复制',1500);
+  });
+
+  // ---------- 诊断对话（示意交互） ----------
+  const ta=document.getElementById('ta');
+  const counter=document.getElementById('counter');
+  ta.addEventListener('input',()=>{
+    const n=ta.value.length;
+    counter.textContent=n+' / 5000';
+    counter.classList.toggle('warn', n>5000);
+    if(n>5000) ta.value=ta.value.slice(0,5000);
+  });
+  let postReportTurns=10;
+  let reportGenerated=false;
+  function appendMsg(role,text){
+    const m=document.createElement('div');
+    m.className='msg '+(role==='me'?'me':'ai');
+    m.innerHTML=`<div class="av">${role==='me'?'你':'罗'}</div><div class="bubble"></div>`;
+    m.querySelector('.bubble').textContent=text;
+    document.getElementById('msgs').appendChild(m);
+    window.scrollTo(0,document.body.scrollHeight);
+  }
+  document.getElementById('sendBtn').addEventListener('click',()=>{
+    const v=ta.value.trim(); if(!v) return;
+    appendMsg('me',v); ta.value=''; counter.textContent='0 / 5000';
+    // 报告前：若干轮后出现生成报告按钮
+    if(!reportGenerated && document.querySelectorAll('#msgs .msg.me').length>=3){
+      document.getElementById('genReportBtn').style.display='inline-flex';
+    }
+    setTimeout(()=>appendMsg('ai','（示意）我听到了。顺着这一点，再问你一个更深的——'),500);
+  });
+
+  // 生成报告 → 跳报告视图
+  document.getElementById('genReportBtn').addEventListener('click',()=>{
+    reportGenerated=true;
+    document.getElementById('genReportBtn').style.display='none';
+    go('report');
+  });
+
+  // 报告页"下载"示意
+  document.getElementById('downloadBtn')?.addEventListener('click',()=>alert('示意：直接下载报告文件（无广告闸门）'));
+
+  // 渲染诊断阶段的提示标签
+  function renderChatPhase(){
+    const tag=document.getElementById('phaseTagWrap');
+    const label=document.getElementById('phaseLabel');
+    const row=document.getElementById('composerRow');
+    const locked=document.getElementById('lockedWrap');
+    if(!reportGenerated){
+      label.textContent='诊断进行中';
+      tag.innerHTML='<span class="phase-tag">诊断阶段 · 不限轮次</span>';
+      row.style.display='flex'; locked.style.display='none';
+    }else{
+      label.textContent='追问阶段';
+      tag.innerHTML=`<span class="phase-tag">追问剩余 ${postReportTurns} 轮</span>`;
+      row.style.display='flex'; locked.style.display='none';
+    }
+  }
+
+  // ---------- 弹层 ----------
+  function openMask(id){document.getElementById(id).classList.add('open');}
+  function closeMask(id){document.getElementById(id).classList.remove('open');}
+  document.getElementById('openPrivacy').addEventListener('click',()=>openMask('privacyMask'));
+  document.getElementById('closePrivacy').addEventListener('click',()=>closeMask('privacyMask'));
+  document.getElementById('openSample').addEventListener('click',()=>openMask('sampleMask'));
+  document.getElementById('closeSample').addEventListener('click',()=>closeMask('sampleMask'));
+  [ 'privacyMask','sampleMask' ].forEach(id=>{
+    document.getElementById(id).addEventListener('click',e=>{ if(e.target.id===id) closeMask(id); });
+  });
+
+  // 初始触发首页动画
+  document.getElementById('view-home').classList.add('show');
+</script>
+</body>
+</html>
