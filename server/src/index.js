@@ -4,7 +4,7 @@ import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import { config, isMock } from './config.js';
-import { buildSystemPrompt, buildReportInstruction, listReferencers } from './skillLoader.js';
+import { buildSystemPrompt, buildReportInstruction, buildGreeting, listReferencers } from './skillLoader.js';
 import { chat, mockReport } from './llm.js';
 import { renderReportHtml } from './report.js';
 import { renderConversationHtml, buildConversationFileName } from './conversation.js';
@@ -320,7 +320,11 @@ app.post('/api/session', requireAuth, async (req, res) => {
   try {
     const referencer = req.body?.referencer || 'general';
     const s = createSession(referencer, req.user.phone);
-    const greeting = await chat(sysPrompt, []);
+    // 开场白使用确定性话术（greeting.md），不调 LLM：
+    // 1) 避免空历史下模型脑补场景（如自行假定用户在央企/投行二选一）；
+    // 2) 新账号首句与老账号恢复历史相互独立，杜绝跨用户上下文污染；
+    // 3) 创建会话不再依赖外部 LLM，避免开场即「思考中」卡住。
+    const greeting = buildGreeting();
     addMessage(s, 'assistant', greeting);
     res.json({ sessionId: s.id, greeting, config: publicConfig() });
   } catch (e) {

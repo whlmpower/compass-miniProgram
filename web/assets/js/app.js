@@ -23,6 +23,7 @@ const state = {
   reportReady: false,
   reportHtml: '', // 报告正文的渲染结果（报告页优先展示，不依赖对话整理 HTML）
   conversationReady: false,
+  pendingStart: false, // 未登录时点击「开始诊断」置位；登录成功后直接进诊断会话
 };
 let captchaId = '';
 
@@ -169,6 +170,8 @@ async function startDiagnosis() {
   if (api.authed && api.role === 'user') {
     if (await ensureSession()) go('chat');
   } else {
+    // 未登录：记住「想开始诊断」的意图，登录成功后直接进诊断会话，免去再回首页点击
+    state.pendingStart = true;
     go('login');
   }
 }
@@ -226,8 +229,15 @@ function onLoggedIn(role) {
   updateNav();
   if (role === 'admin') {
     go('admin');
+  } else if (state.pendingStart) {
+    // 来自「开始诊断」的登录：直接开诊断会话（无历史则新建），不再回首页
+    state.pendingStart = false;
+    ensureSession({ autoCreate: true }).then((ok) => {
+      if (ok) go('chat');
+      else go('home');
+    });
   } else {
-    // 仅恢复已有会话（不静默新建）；有历史则进对话页，否则回首页
+    // 其他登录/刷新：仅恢复已有会话（不静默新建）；有历史则进对话页，否则回首页
     ensureSession({ autoCreate: false }).then((ok) => {
       if (ok) go('chat');
       else go('home');

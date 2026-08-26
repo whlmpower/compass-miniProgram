@@ -67,6 +67,16 @@ const RESEARCH_MAP = {
   'side-hustle': null,
 };
 
+// 确定性开场白：避免拿空历史调 LLM 导致模型「脑补」场景（如自行假定用户在央企/投行二选一）。
+// 直接使用 warmup.md 定义的统一开场话术，保证每个新会话（无论新老账号）首句一致、无上下文污染。
+export function buildGreeting() {
+  const c = read(path.join(SKILL, 'prompts/greeting.md')).trim();
+  return (
+    c ||
+    '你好，我是「职业罗盘」。今天我想陪你一起看看，那些让你纠结的东西，到底在告诉你什么。先跟我聊聊你现在的处境吧——你现在在哪里工作或读书？最近遇到了什么让你感到纠结的事情？想到什么说什么就行，我会在关键的地方追问你。'
+  );
+}
+
 export function listReferencers() {
   return REFERENCERS.map((id) => {
     const meta = read(path.join(SKILL, 'referencers', id, 'meta.json'));
