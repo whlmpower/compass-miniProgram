@@ -42,16 +42,21 @@ function generatePassword() {
   return arr.join('');
 }
 
-// ---------- 初始化管理员（首次启动从 .env 写入） ----------
+// ---------- 初始化/同步管理员：每次启动都按 .env 最新值刷新 ----------
+// 设计：.env 是 admin 凭据的权威来源。只要配置了 ADMIN_PHONE/ADMIN_PASSWORD，
+// 每次启动都确保 users.json 里的 admin 与 .env 一致（首次创建 / 改密码 / 改手机号时更新）。
+// 未配置则保留现有记录（不创建、不删除），兼容「禁用 admin」的场景。
 export function initAdmin() {
+  if (!config.adminPhone || !config.adminPassword) return;
+  const expected = hashPassword(config.adminPassword);
   const data = load();
-  if (data.admin) return;
-  if (!config.adminPhone || !config.adminPassword) {
-    // 未配置管理员凭据：跳过（admin 接口将 403）
-    return;
-  }
-  const { salt, hash } = hashPassword(config.adminPassword);
-  data.admin = { phone: config.adminPhone, pwdSalt: salt, pwdHash: hash };
+  const existing = data.admin;
+  const needUpdate =
+    !existing ||
+    existing.phone !== config.adminPhone ||
+    existing.pwdHash !== expected.hash;
+  if (!needUpdate) return; // 凭据未变，不无谓重写
+  data.admin = { phone: config.adminPhone, pwdSalt: expected.salt, pwdHash: expected.hash };
   save(data);
 }
 

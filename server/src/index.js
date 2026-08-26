@@ -454,8 +454,9 @@ const isMain =
 // 双保险：PM2 托管时直接监听（由 PM2 守护，不依赖 isMain 判定）
 const underPM2 = !!process.env.PM2_HOME || process.env.pm_id !== undefined;
 if (isMain || underPM2) {
-  app.listen(config.port, () => {
-    console.log(`[hemo-career-compass] server on http://localhost:${config.port}  (mock=${isMock()})`);
+  // 只监听本机回环地址，避免 3001 直接暴露公网；公网访问统一走 Nginx 反代
+  app.listen(config.port, '127.0.0.1', () => {
+    console.log(`[hemo-career-compass] server on http://127.0.0.1:${config.port}  (mock=${isMock()})`);
   });
 }
 
