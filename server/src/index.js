@@ -454,9 +454,12 @@ const isMain =
 // 双保险：PM2 托管时直接监听（由 PM2 守护，不依赖 isMain 判定）
 const underPM2 = !!process.env.PM2_HOME || process.env.pm_id !== undefined;
 if (isMain || underPM2) {
-  // 只监听本机回环地址，避免 3001 直接暴露公网；公网访问统一走 Nginx 反代
-  app.listen(config.port, '127.0.0.1', () => {
-    console.log(`[hemo-career-compass] server on http://127.0.0.1:${config.port}  (mock=${isMock()})`);
+  // 监听地址：默认 '0.0.0.0'（监听所有网卡），方便备案前用 http://公网IP:3001 临时访问/测试。
+  // 生产环境（Nginx 反代就位、域名 HTTPS 上线后）建议设 LISTEN_HOST=127.0.0.1，
+  // 仅允许本机 Nginx 访问，避免 3001 端口直连公网。
+  const listenHost = process.env.LISTEN_HOST || '0.0.0.0';
+  app.listen(config.port, listenHost, () => {
+    console.log(`[hemo-career-compass] server on http://${listenHost}:${config.port}  (mock=${isMock()})`);
   });
 }
 
