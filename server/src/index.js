@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import fs from 'node:fs';
 import { config, isMock } from './config.js';
 import { buildSystemPrompt, buildReportInstruction, listReferencers } from './skillLoader.js';
@@ -442,8 +443,11 @@ app.get('/api/session/:id/conversation/download', requireAuth, (req, res) => {
 });
 
 // 仅当作为主模块直接运行时监听（测试时由测试框架导入 app，不自动监听）
+// 用 pathToFileURL 归一化 argv[1]，兼容 PM2 传入相对路径导致 isMain 误判、进程不监听的问题
 const isMain =
-  process.argv[1] && import.meta.url === `file://${process.argv[1]}`;
+  !!process.argv[1] &&
+  (import.meta.url === `file://${process.argv[1]}` ||
+    import.meta.url === pathToFileURL(process.argv[1]).href);
 if (isMain) {
   app.listen(config.port, () => {
     console.log(`[hemo-career-compass] server on http://localhost:${config.port}  (mock=${isMock()})`);
