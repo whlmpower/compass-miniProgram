@@ -355,9 +355,21 @@ async function sendMessage() {
       go('login');
       return;
     }
-    // 中断时保留已收到的部分内容，避免出现「消息凭空消失」
+    // 流中断（切后台/断网等）：服务端在发 done 帧前已落库完整回复，静默从服务端恢复，
+    // 避免「半截内容 + network error 弹窗」——这是移动端切 App 导致在途 SSE 被 OS 掐断的典型表现。
+    let meta = null;
+    try { meta = await getMeta(); } catch { /* 恢复失败，走下方 fallback */ }
+    const last = meta && meta.messages && meta.messages.length ? meta.messages[meta.messages.length - 1] : null;
+    if (last && last.role === 'assistant' && last.content) {
+      applyMeta(meta); // 以服务端为准完整同步历史（已含本次完整回复）
+      bubble.classList.remove('typing');
+      bubble.innerHTML = renderMarkdown(last.content);
+      window.scrollTo(0, document.body.scrollHeight);
+      if (state.meta && state.meta.status === 'reported') renderChatPhase();
+      return;
+    }
+    // 服务端尚未落库（极早期中断）：保留已收到的部分内容并提示
     if (acc) {
-      renderPartial(true);
       bubble.innerHTML = renderMarkdown(acc);
       state.messages.push({ role: 'assistant', content: acc });
       alert('响应中断，刷新页面可获取完整回复。');
@@ -419,6 +431,19 @@ async function generateReport() {
   } catch (err) {
     btn.disabled = false;
     btn.textContent = btnText;
+    // 流中断：服务端在发 done 帧前已 setReport + 落库，尝试静默恢复报告
+    try {
+      const meta = await getMeta();
+      if (meta && meta.reportReady) {
+        applyMeta(meta);
+        ti.remove();
+        await loadReport();
+        go('report');
+        return;
+      }
+    } catch {
+      /* 恢复失败，走下方 alert */
+    }
     ti.remove();
     alert(err && err.message ? err.message : '报告生成失败，请稍后重试');
     return;
