@@ -27,6 +27,15 @@ const state = {
 };
 let captchaId = '';
 
+// 生成恢复状态（「生成与连接解耦」前端侧）：
+//   pendingGen       : 存在进行中的生成任务（尚未收到 done 帧）
+//   pendingGenKind   : 'chat' | 'report'，决定恢复完成后去向
+//   recovering       : 是否正在轮询恢复中（防止重复触发）
+// 切后台导致在途 SSE 被 OS 掐断时，服务端仍在生成；回前台后据此静默轮询恢复，全程不弹 alert。
+let pendingGen = false;
+let pendingGenKind = 'chat';
+let recovering = false;
+
 // ---------- 视图切换 + 入场动画 ----------
 const views = ['home', 'login', 'admin', 'chat', 'report'];
 function go(v) {
@@ -97,6 +106,70 @@ function applyMeta(meta) {
   state.reportHtml = meta.reportHtml || ''; // 刷新恢复时带回报告正文，报告页可直接渲染
   state.conversationReady = !!meta.conversationReady;
   state.messages = (meta.messages || []).map((m) => ({ role: m.role, content: m.content }));
+}
+
+// 静默恢复：轮询服务端生成状态，直到 generating=false 后以服务端为准定稿渲染。
+// 用于「切后台导致在途 SSE 被 OS 掐断」的场景——此时服务端仍在生成，回前台轮询即可
+// 拿到完整回复，全程不弹任何 alert / network error。bubbleEl 为进行中的「生成中」气泡。
+const RECOVER_POLL_MS = 1200;
+const RECOVER_TIMEOUT_MS = 120000;
+async function recoverFromServer(kind, bubbleEl) {
+  if (recovering) return; // 已在恢复中，避免重复轮询
+  recovering = true;
+  const bubble = bubbleEl || document.querySelector('.msg.ai .bubble.typing');
+  const tStart = Date.now();
+  try {
+    for (;;) {
+      if (Date.now() - tStart > RECOVER_TIMEOUT_MS) {
+        throw new Error('生成超时，请刷新页面重试');
+      }
+      let meta = null;
+      try {
+        meta = await getMeta();
+      } catch {
+        /* 仍断网，继续等待下一次轮询 */
+      }
+      if (meta) {
+        if (!meta.generating) {
+          // 生成已完成：以服务端为准定稿
+          if (kind === 'report') {
+            if (meta.reportReady) {
+              applyMeta(meta);
+              if (bubble) bubble.closest('.msg')?.remove();
+              await loadReport();
+              go('report');
+              return;
+            }
+          } else {
+            const last = meta.messages[meta.messages.length - 1];
+            if (last && last.role === 'assistant' && last.content) {
+              applyMeta(meta);
+              if (bubble) {
+                bubble.classList.remove('typing');
+                bubble.innerHTML = renderMarkdown(last.content);
+              }
+              window.scrollTo(0, document.body.scrollHeight);
+              if (state.meta && state.meta.status === 'reported') renderChatPhase();
+              return;
+            }
+          }
+        } else {
+          // 仍在生成：保持中性提示（选项 B：不渲染半截草稿，避免 Markdown 闪烁）
+          if (bubble) {
+            bubble.classList.add('typing');
+            bubble.textContent = kind === 'report' ? '正在生成诊断报告…' : '正在生成回复…';
+          }
+        }
+      }
+      await new Promise((r) => setTimeout(r, RECOVER_POLL_MS));
+    }
+  } catch (e) {
+    if (bubble) bubble.closest('.msg')?.remove();
+    alert(e.message || '生成失败，请刷新页面重试');
+  } finally {
+    recovering = false;
+    pendingGen = false;
+  }
 }
 
 // autoCreate=false 时只恢复已有会话、不新建（用于登录/刷新自动续接）；
@@ -303,6 +376,14 @@ ta.addEventListener('input', () => {
 });
 
 $('sendBtn').addEventListener('click', sendMessage);
+
+// 回前台静默恢复：切到别的 App 再回来时，若仍有进行中的生成任务（且尚未在恢复中），
+// 主动轮询服务端——即使当初在途 SSE 被 OS 掐断、fetch 错误从未触发，也能静默拿到完整回复。
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && pendingGen && !recovering) {
+    recoverFromServer(pendingGenKind, document.querySelector('.msg.ai .bubble.typing'));
+  }
+});
 async function sendMessage() {
   const text = ta.value.trim();
   if (!text) return;
@@ -320,6 +401,10 @@ async function sendMessage() {
   ti.innerHTML = '<div class="av">罗</div><div class="bubble typing">思考中…</div>';
   $('msgs').appendChild(ti);
   const bubble = ti.querySelector('.bubble');
+  // 标记有进行中的生成任务（尚未收到 done 帧）。即使随后切后台被 OS 冻结、fetch 错误未触发，
+  // 回前台时 visibilitychange 仍能据此静默恢复，避免丢消息或弹 alert。
+  pendingGen = true;
+  pendingGenKind = 'chat';
 
   // 流式增量渲染（P1）：流中用纯文本，避免半截 Markdown 语法（如未闭合的 **）闪烁；
   // 结束后再整体 renderMarkdown 定稿。刷新做节流，避免每个 token 都跑 marked + DOMPurify 造成卡顿。
@@ -355,28 +440,11 @@ async function sendMessage() {
       go('login');
       return;
     }
-    // 流中断（切后台/断网等）：服务端在发 done 帧前已落库完整回复，静默从服务端恢复，
-    // 避免「半截内容 + network error 弹窗」——这是移动端切 App 导致在途 SSE 被 OS 掐断的典型表现。
-    let meta = null;
-    try { meta = await getMeta(); } catch { /* 恢复失败，走下方 fallback */ }
-    const last = meta && meta.messages && meta.messages.length ? meta.messages[meta.messages.length - 1] : null;
-    if (last && last.role === 'assistant' && last.content) {
-      applyMeta(meta); // 以服务端为准完整同步历史（已含本次完整回复）
-      bubble.classList.remove('typing');
-      bubble.innerHTML = renderMarkdown(last.content);
-      window.scrollTo(0, document.body.scrollHeight);
-      if (state.meta && state.meta.status === 'reported') renderChatPhase();
-      return;
-    }
-    // 服务端尚未落库（极早期中断）：保留已收到的部分内容并提示
-    if (acc) {
-      bubble.innerHTML = renderMarkdown(acc);
-      state.messages.push({ role: 'assistant', content: acc });
-      alert('响应中断，刷新页面可获取完整回复。');
-    } else {
-      ti.remove();
-      alert(err && err.message ? err.message : '发送失败，请稍后重试');
-    }
+    // 流中断（切后台/断网等）。服务端已将「生成回复」与「维持连接」解耦：
+    // 即便本连接已断，生成任务仍在服务端继续跑。这里不再弹 alert，改为静默轮询恢复。
+    pendingGen = true;
+    pendingGenKind = 'chat';
+    await recoverFromServer('chat', bubble);
     return;
   }
 
@@ -385,6 +453,7 @@ async function sendMessage() {
   bubble.classList.remove('typing');
   bubble.innerHTML = renderMarkdown(reply); // 定稿：完整 Markdown 渲染
   window.scrollTo(0, document.body.scrollHeight);
+  pendingGen = false; // 正常完成，清除进行中标记
 
   if (state.meta && state.meta.status === 'reported') {
     state.meta.postReportTurnsLeft = result.postReportTurnsLeft;
@@ -406,6 +475,10 @@ async function generateReport() {
   ti.innerHTML = '<div class="av">罗</div><div class="bubble typing">正在生成诊断报告…</div>';
   $('msgs').appendChild(ti);
   const bubble = ti.querySelector('.bubble');
+  // 标记有进行中的报告生成任务（尚未收到 done 帧）。切后台被 OS 冻结时，
+  // 回前台 visibilitychange 据此静默恢复，避免弹「报告生成失败」。
+  pendingGen = true;
+  pendingGenKind = 'report';
 
   let acc = '';
   let lastRenderAt = 0;
@@ -431,24 +504,14 @@ async function generateReport() {
   } catch (err) {
     btn.disabled = false;
     btn.textContent = btnText;
-    // 流中断：服务端在发 done 帧前已 setReport + 落库，尝试静默恢复报告
-    try {
-      const meta = await getMeta();
-      if (meta && meta.reportReady) {
-        applyMeta(meta);
-        ti.remove();
-        await loadReport();
-        go('report');
-        return;
-      }
-    } catch {
-      /* 恢复失败，走下方 alert */
-    }
-    ti.remove();
-    alert(err && err.message ? err.message : '报告生成失败，请稍后重试');
+    // 流中断：服务端已与连接解耦，生成任务继续跑；静默轮询恢复报告，不弹 alert
+    pendingGen = true;
+    pendingGenKind = 'report';
+    await recoverFromServer('report', bubble);
     return;
   }
   ti.remove();
+  pendingGen = false; // 正常完成，清除进行中标记
 
   state.reportReady = true;
   state.reportHtml = result.reportHtml || ''; // 保存报告正文，供报告页直接渲染

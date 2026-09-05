@@ -143,6 +143,17 @@ function sseSend(res, obj) {
   res.write(`data: ${JSON.stringify(obj)}\n\n`);
 }
 
+// ---------- 会话级生成状态（内存态，不持久化） ----------
+// 用于「生成与连接解耦」：客户端连接被 OS 掐断后，生成任务仍继续跑，
+// 前端回前台轮询该状态即可拿到完整回复。键为 sessionId。
+//   generating : 是否正在生成（本轮对话/报告）
+//   draft      : 已生成的累计文本（生成中时可被读取，供前端判断是否仍在生成）
+//   clientGone : 客户端连接是否已断开（断开后只写 draft，不再向死 socket 推送）
+const genState = new Map();
+function getGen(sid) {
+  return genState.get(sid);
+}
+
 function publicConfig() {
   return {
     features: { ads: false },
@@ -375,6 +386,9 @@ app.get('/api/session/:id', requireAuth, (req, res) => {
     reportHtml: s.report ? s.report.html || '' : '', // 报告正文（刷新恢复后报告页直接渲染，不依赖对话整理 HTML）
     conversationReady: !!s.conversationReady,
     messageCount: s.messages.length,
+    // 生成状态（供前端切后台后静默恢复轮询）：generating=是否正在生成，draft=已生成累计文本
+    generating: !!getGen(s.id)?.generating,
+    draft: getGen(s.id)?.draft || '',
     messages: s.messages,
   });
 });
@@ -453,6 +467,32 @@ app.post('/api/session/:id/message/stream', requireAuth, async (req, res) => {
     return res.status(400).json({ error: `单轮输入不能超过 ${config.maxInputChars} 字` });
   }
 
+  // 防重复生成：同一会话只允许一个进行中的生成任务（防止前端重复提交/超时重发导致并发）
+  if (getGen(s.id)?.generating) {
+    return res.status(409).json({ error: '回复生成中，请稍候' });
+  }
+
+  // 建立会话级生成状态（内存态）。即使客户端连接被 OS 掐断，这里的 generating/draft
+  // 仍持续更新，前端回前台后轮询该状态即可静默拿到完整回复——这是「生成与连接解耦」的关键。
+  genState.set(s.id, { generating: true, draft: '', clientGone: false });
+  const g = getGen(s.id);
+  // 增量文本同时写入 draft（供恢复）与 SSE（仅当客户端仍在场，断开后静默丢弃推送但继续累积）
+  const pushDelta = (text) => {
+    if (!text) return;
+    g.draft += text;
+    if (!g.clientGone) {
+      try {
+        sseSend(res, { type: 'delta', text });
+      } catch {
+        // 往已断开的 socket 写失败：标记断开，但生成任务继续跑（不抛错中断上游）
+        g.clientGone = true;
+      }
+    }
+  };
+  res.on('close', () => {
+    g.clientGone = true;
+  });
+
   const t0 = Date.now();
   const sid = s.id.slice(0, 8);
   let firstTokenMs = -1; // -1 表示未经过 LLM（走了关键词兜底）
@@ -470,7 +510,7 @@ app.post('/api/session/:id/message/stream', requireAuth, async (req, res) => {
       conversationJustReady = intent.justReady;
       firstTokenMs = Date.now() - t0;
       sseInit(res);
-      sseSend(res, { type: 'delta', text: reply });
+      pushDelta(reply);
     } else {
       const extraSystem =
         s.status === 'reported' && s.report
@@ -482,7 +522,7 @@ app.post('/api/session/:id/message/stream', requireAuth, async (req, res) => {
         onDelta: (text) => {
           if (!text) return;
           if (firstTokenMs < 0) firstTokenMs = Date.now() - t0;
-          sseSend(res, { type: 'delta', text });
+          pushDelta(text);
         },
       });
     }
@@ -510,7 +550,11 @@ app.post('/api/session/:id/message/stream', requireAuth, async (req, res) => {
     console.error(`[chat-stream] 失败 sid=${sid} totalMs=${Date.now() - t0} err=${e?.message || e}`);
     if (res.headersSent) {
       // 流已开启，不能再改状态码，只能下发 error 帧
-      sseSend(res, { type: 'error', message: `模型调用失败：${e.message || e}` });
+      try {
+        sseSend(res, { type: 'error', message: `模型调用失败：${e.message || e}` });
+      } catch {
+        /* 客户端已断开，忽略 */
+      }
       try {
         res.end();
       } catch {
@@ -519,6 +563,9 @@ app.post('/api/session/:id/message/stream', requireAuth, async (req, res) => {
     } else {
       res.status(502).json({ error: `模型调用失败：${e.message || e}` });
     }
+  } finally {
+    // 无论成功/失败/客户端断开，生成任务在此标记为结束，前端轮询将看到 generating=false
+    genState.delete(s.id);
   }
 });
 
@@ -564,6 +611,30 @@ app.post('/api/session/:id/report/stream', requireAuth, async (req, res) => {
     return res.status(400).json({ error: '报告已生成，不能重复生成' });
   }
 
+  // 防重复生成：同一会话只允许一个进行中的生成任务
+  if (getGen(s.id)?.generating) {
+    return res.status(409).json({ error: '报告生成中，请稍候' });
+  }
+
+  // 建立会话级生成状态（内存态，与对话流共用同一条记录）。即便客户端连接被 OS 掐断，
+  // 报告生成任务仍继续跑，前端回前台后轮询即可静默拿到完整报告。
+  genState.set(s.id, { generating: true, draft: '', clientGone: false });
+  const g = getGen(s.id);
+  const pushDelta = (text) => {
+    if (!text) return;
+    g.draft += text;
+    if (!g.clientGone) {
+      try {
+        sseSend(res, { type: 'delta', text });
+      } catch {
+        g.clientGone = true;
+      }
+    }
+  };
+  res.on('close', () => {
+    g.clientGone = true;
+  });
+
   const t0 = Date.now();
   const sid = s.id.slice(0, 8);
   let firstTokenMs = -1;
@@ -578,7 +649,7 @@ app.post('/api/session/:id/report/stream', requireAuth, async (req, res) => {
       const step = 120;
       for (let i = 0; i < markdown.length; i += step) {
         if (firstTokenMs < 0) firstTokenMs = Date.now() - t0;
-        sseSend(res, { type: 'delta', text: markdown.slice(i, i + step) });
+        pushDelta(markdown.slice(i, i + step));
         await new Promise((r) => setTimeout(r, 20));
       }
     } else {
@@ -589,7 +660,7 @@ app.post('/api/session/:id/report/stream', requireAuth, async (req, res) => {
         onDelta: (text) => {
           if (!text) return;
           if (firstTokenMs < 0) firstTokenMs = Date.now() - t0;
-          sseSend(res, { type: 'delta', text });
+          pushDelta(text);
         },
       });
     }
@@ -612,7 +683,11 @@ app.post('/api/session/:id/report/stream', requireAuth, async (req, res) => {
   } catch (e) {
     console.error(`[report-stream] 失败 sid=${sid} totalMs=${Date.now() - t0} err=${e?.message || e}`);
     if (res.headersSent) {
-      sseSend(res, { type: 'error', message: `报告生成失败：${e.message || e}` });
+      try {
+        sseSend(res, { type: 'error', message: `报告生成失败：${e.message || e}` });
+      } catch {
+        /* 客户端已断开，忽略 */
+      }
       try {
         res.end();
       } catch {
@@ -621,6 +696,9 @@ app.post('/api/session/:id/report/stream', requireAuth, async (req, res) => {
     } else {
       res.status(502).json({ error: `报告生成失败：${e.message || e}` });
     }
+  } finally {
+    // 无论成功/失败/客户端断开，生成任务在此标记为结束
+    genState.delete(s.id);
   }
 });
 
