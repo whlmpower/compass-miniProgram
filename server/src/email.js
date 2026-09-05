@@ -67,7 +67,7 @@ export function sendVerificationCode({ to, code }) {
     HtmlBody: html,
     TextBody: text,
     ReplyToAddress: 'false',
-    MailAddress: config.emailFromAddress,
+    AccountName: config.emailFromAddress, // SingleSendMail 的发信地址参数名为 AccountName（写成 MailAddress 会被忽略并报 AccountName is mandatory）
     ClickTrace: '0',
   };
 
