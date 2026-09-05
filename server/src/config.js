@@ -56,6 +56,22 @@ export const config = {
   rateIpMax: Number(process.env.RATE_IP_MAX || 10),
   rateWindowHours: Number(process.env.RATE_WINDOW_HOURS || 24),
 
+  // 邮箱自注册（邀请码门控）
+  inviteCode: process.env.INVITE_CODE || '',
+  // 邮件发送（阿里云 DirectMail SingleSendMail）。无凭证或 EMAIL_MOCK=true 时走日志回显兜底。
+  emailMock: process.env.EMAIL_MOCK === 'true',
+  emailAccessKeyId: process.env.EMAIL_ACCESS_KEY_ID || '',
+  emailAccessKeySecret: process.env.EMAIL_ACCESS_KEY_SECRET || '',
+  emailFromAddress: process.env.EMAIL_FROM_ADDRESS || '',
+  emailFromAlias: process.env.EMAIL_FROM_ALIAS || '职业罗盘',
+  emailRegionId: process.env.EMAIL_REGION_ID || 'cn-hangzhou',
+  emailEndpoint: process.env.EMAIL_ENDPOINT || 'dm.aliyuncs.com',
+  // 验证码策略：10 分钟有效、60s 发送冷却、每小时最多 5 封、最多错 5 次
+  emailCodeTtlMinutes: Number(process.env.EMAIL_CODE_TTL_MINUTES || 10),
+  emailSendCooldownSeconds: Number(process.env.EMAIL_SEND_COOLDOWN_SECONDS || 60),
+  emailMaxSendsPerHour: Number(process.env.EMAIL_MAX_SENDS_PER_HOUR || 5),
+  emailMaxVerifyAttempts: Number(process.env.EMAIL_MAX_VERIFY_ATTEMPTS || 5),
+
   // 文件路径
   usersFile: path.join(ROOT, 'data', 'users.json'),
   ratelimitFile: path.join(ROOT, 'data', 'ratelimit.json'),

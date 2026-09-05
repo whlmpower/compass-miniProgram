@@ -37,7 +37,7 @@ let pendingGenKind = 'chat';
 let recovering = false;
 
 // ---------- 视图切换 + 入场动画 ----------
-const views = ['home', 'login', 'admin', 'chat', 'report'];
+const views = ['home', 'login', 'admin', 'chat', 'report', 'register', 'bind'];
 function go(v) {
   views.forEach((id) => {
     const el = $('view-' + id);
@@ -52,6 +52,7 @@ function go(v) {
     $('loginErr').textContent = '';
     loadCaptcha();
   }
+  if (v === 'register') resetRegisterView();
   if (v === 'admin' && api.authed && api.role === 'admin') loadAdmin();
   if (v === 'chat') {
     renderChat();
@@ -317,6 +318,192 @@ function onLoggedIn(role) {
     });
   }
 }
+
+// ---------- 邮箱自注册（邀请码门控） ----------
+let regInviteToken = ''; // 邀请码验证通过后下发的短期令牌（5 分钟）
+let regRegToken = ''; // 邮箱验证码校验通过后下发的注册会话令牌（15 分钟）
+let regEmailCodeTimer = null;
+let regInviteBusy = false;
+const SELF_PWD_RE = /^(?=.*[a-zA-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).{8,}$/;
+
+// 进入注册视图时清空并复位全部状态
+function resetRegisterView() {
+  regInviteToken = '';
+  regRegToken = '';
+  if (regEmailCodeTimer) {
+    clearInterval(regEmailCodeTimer);
+    regEmailCodeTimer = null;
+  }
+  $('rgErr').textContent = '';
+  $('bdErr').textContent = '';
+  $('rgEmail').value = '';
+  $('rgInvite').value = '';
+  $('rgEmailCode').value = '';
+  $('rgEmailCode').disabled = true;
+  $('btnSendRegCode').disabled = true;
+  $('btnSendRegCode').textContent = '获取验证码';
+  $('btnRegister').disabled = true;
+}
+
+// 邀请码：失焦自动校验，无需单独按钮
+async function verifyInvite() {
+  const code = $('rgInvite').value.trim();
+  const err = $('rgErr');
+  if (!code || regInviteBusy) return;
+  regInviteBusy = true;
+  err.textContent = '';
+  try {
+    const { res, data } = await api.post('/api/auth/register/verify-invite', { code });
+    if (res.ok) {
+      regInviteToken = data.inviteToken;
+      $('rgEmailCode').disabled = false;
+      $('btnSendRegCode').disabled = false;
+    } else {
+      regInviteToken = '';
+      $('rgEmailCode').disabled = true;
+      $('btnSendRegCode').disabled = true;
+      err.textContent = data?.error || '邀请码不正确';
+    }
+  } catch (e) {
+    err.textContent = e.message || '验证失败，请稍后重试';
+  } finally {
+    regInviteBusy = false;
+  }
+}
+$('rgInvite').addEventListener('blur', () => {
+  if ($('rgInvite').value.trim()) verifyInvite();
+});
+$('rgInvite').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    verifyInvite();
+  }
+});
+
+// 发送邮箱验证码（60s 倒计时防重发；服务端另有冷却与限频）
+async function sendRegCode() {
+  const email = $('rgEmail').value.trim();
+  const err = $('rgErr');
+  const btn = $('btnSendRegCode');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    err.textContent = '请输入正确的邮箱地址';
+    return;
+  }
+  if (!regInviteToken) {
+    err.textContent = '请先填写并验证邀请码';
+    return;
+  }
+  btn.disabled = true;
+  try {
+    const { res, data } = await api.post('/api/auth/register/send-code', { email, inviteToken: regInviteToken });
+    if (res.ok) {
+      err.textContent = '';
+      $('btnRegister').disabled = false;
+      let left = 60;
+      btn.textContent = `${left}s 后重发`;
+      regEmailCodeTimer = setInterval(() => {
+        left -= 1;
+        if (left <= 0) {
+          clearInterval(regEmailCodeTimer);
+          regEmailCodeTimer = null;
+          btn.textContent = '获取验证码';
+          btn.disabled = false;
+        } else {
+          btn.textContent = `${left}s 后重发`;
+        }
+      }, 1000);
+    } else {
+      err.textContent = data?.error || '发送失败';
+      btn.disabled = false;
+    }
+  } catch (e) {
+    err.textContent = e.message || '发送失败，请稍后重试';
+    btn.disabled = false;
+  }
+}
+$('btnSendRegCode').addEventListener('click', sendRegCode);
+
+// 第一步：校验邮箱验证码 → 进入「设置账号」视图
+async function registerStep1() {
+  const email = $('rgEmail').value.trim();
+  const code = $('rgEmailCode').value.trim();
+  const err = $('rgErr');
+  err.textContent = '';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    err.textContent = '请输入正确的邮箱地址';
+    return;
+  }
+  if (!/^\d{6}$/.test(code)) {
+    err.textContent = '请输入 6 位验证码';
+    return;
+  }
+  const btn = $('btnRegister');
+  btn.disabled = true;
+  try {
+    const { res, data } = await api.post('/api/auth/register/verify-email', { email, code });
+    if (res.ok) {
+      regRegToken = data.regToken;
+      go('bind');
+    } else {
+      err.textContent = data?.error || '验证失败';
+      btn.disabled = false;
+    }
+  } catch (e) {
+    err.textContent = e.message || '验证失败，请稍后重试';
+    btn.disabled = false;
+  }
+}
+$('btnRegister').addEventListener('click', registerStep1);
+$('rgEmailCode').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') registerStep1();
+});
+
+// 第二步：绑定手机号 + 自设密码 → 建号并自动登录进诊断
+async function bindAccount() {
+  const phone = $('bdPhone').value.trim();
+  const pwd = $('bdPwd').value;
+  const pwd2 = $('bdPwd2').value;
+  const err = $('bdErr');
+  err.textContent = '';
+  if (!/^1\d{10}$/.test(phone)) {
+    err.textContent = '请输入正确的 11 位手机号';
+    return;
+  }
+  if (!SELF_PWD_RE.test(pwd)) {
+    err.textContent = '密码至少 8 位，且需同时包含字母、数字和符号';
+    return;
+  }
+  if (pwd !== pwd2) {
+    err.textContent = '两次输入的密码不一致';
+    return;
+  }
+  const btn = $('btnBind');
+  btn.disabled = true;
+  try {
+    const { res, data } = await api.post('/api/auth/register/complete', {
+      regToken: regRegToken,
+      phone,
+      password: pwd,
+    });
+    if (res.ok) {
+      api.setSession(data.token, data.role);
+      regRegToken = '';
+      // 注册成功自动登录并直接进诊断（与「开始诊断」登录后的体验一致）
+      state.pendingStart = true;
+      onLoggedIn(data.role);
+    } else {
+      err.textContent = data?.error || '注册失败';
+    }
+  } catch (e) {
+    err.textContent = e.message || '注册失败，请稍后重试';
+  } finally {
+    btn.disabled = false;
+  }
+}
+$('btnBind').addEventListener('click', bindAccount);
+$('bdPwd2').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') bindAccount();
+});
 
 // ---------- 诊断对话 ----------
 function renderChat() {

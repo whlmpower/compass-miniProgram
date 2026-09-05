@@ -131,4 +131,6 @@ export function cleanup() {
 }
 
 loadAll();
-setInterval(cleanup, 60 * 60 * 1000);
+// .unref()：不让这个定时器阻止进程退出（测试环境 node --test 否则会永久挂起；
+// 生产环境进程由 PM2 守护，不受影响）
+setInterval(cleanup, 60 * 60 * 1000).unref();

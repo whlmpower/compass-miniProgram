@@ -8,6 +8,7 @@ process.env.LLM_MOCK = 'true';
 process.env.ADMIN_PHONE = '13800000001';
 process.env.ADMIN_PASSWORD = 'admin123456';
 process.env.JWT_SECRET = 'test_secret';
+process.env.INVITE_CODE = 'TEST-INVITE-2026';
 
 const { config } = await import('../src/config.js');
 const { initAdmin } = await import('../src/users.js');
@@ -15,7 +16,7 @@ const { resetAll: resetRatelimit } = await import('../src/ratelimit.js');
 
 // 清理测试数据文件
 function cleanData() {
-  for (const f of ['users.json', 'ratelimit.json', 'sessions.json']) {
+  for (const f of ['users.json', 'ratelimit.json', 'sessions.json', 'emailcodes.json']) {
     try { fs.unlinkSync(path.join(config.rootDir, 'data', f)); } catch {}
   }
   try {
@@ -40,7 +41,12 @@ before(async () => {
 });
 
 after(async () => {
-  if (server) await new Promise((r) => server.close(r));
+  if (server) {
+    // fetch（undici）的 keep-alive 连接会让 server.close() 等待已有连接而永不回调，
+    // 进程因此无法退出（node --test 挂起）。先强制断开所有连接再关闭。
+    server.closeAllConnections?.();
+    await new Promise((r) => server.close(r));
+  }
   cleanData();
 });
 
@@ -361,5 +367,125 @@ describe('限流', () => {
     } finally {
       config.rateIpMax = origIpMax;
     }
+  });
+});
+
+// ===== 邮箱自注册（邀请码门控） =====
+
+// mock 邮件模式下，验证码持久化在 data/emailcodes.json，测试直接读取
+function readEmailCode(email) {
+  const file = path.join(config.rootDir, 'data', 'emailcodes.json');
+  const rec = JSON.parse(fs.readFileSync(file, 'utf8'))[email];
+  return rec ? rec.code : '';
+}
+
+describe('邮箱自注册', () => {
+  it('错误邀请码返回 401', async () => {
+    const { res, data } = await req('POST', '/api/auth/register/verify-invite', { code: 'WRONG-CODE' });
+    assert.equal(res.status, 401);
+    assert.ok(data.error.includes('邀请码'));
+  });
+
+  it('正确邀请码返回 inviteToken，但拿它发验证码时邮箱已注册会 409', async () => {
+    const { res, data } = await req('POST', '/api/auth/register/verify-invite', { code: 'TEST-INVITE-2026' });
+    assert.equal(res.status, 200);
+    assert.ok(data.inviteToken);
+
+    // 邮箱格式错误 400
+    const bad = await req('POST', '/api/auth/register/send-code', { email: 'not-an-email', inviteToken: data.inviteToken });
+    assert.equal(bad.res.status, 400);
+
+    // 伪造 inviteToken 401
+    const forged = await req('POST', '/api/auth/register/send-code', { email: 'a@example.com', inviteToken: 'forged.token.here' });
+    assert.equal(forged.res.status, 401);
+  });
+
+  it('完整注册链路：邀请码 → 邮箱验证码 → 绑定手机号密码 → 自动登录可用', async () => {
+    // 1) 邀请码
+    const inv = await req('POST', '/api/auth/register/verify-invite', { code: 'TEST-INVITE-2026' });
+    assert.equal(inv.res.status, 200);
+    const inviteToken = inv.data.inviteToken;
+
+    // 2) 发送验证码（EMAIL 无凭证 → mock 落盘）
+    const email = 'newuser@example.com';
+    const send = await req('POST', '/api/auth/register/send-code', { email, inviteToken });
+    assert.equal(send.res.status, 200);
+
+    // 3) 校验验证码
+    const code = readEmailCode(email);
+    assert.ok(/^\d{6}$/.test(code), 'mock 模式下应能从 emailcodes.json 读到 6 位验证码');
+    const ver = await req('POST', '/api/auth/register/verify-email', { email, code });
+    assert.equal(ver.res.status, 200);
+    assert.ok(ver.data.regToken);
+
+    // 4) 绑定手机号 + 自设密码，建号并登录
+    const phone = '13900001234';
+    const done = await req('POST', '/api/auth/register/complete', { regToken: ver.data.regToken, phone, password: 'Str0ng!pwd' });
+    assert.equal(done.res.status, 200);
+    assert.equal(done.data.role, 'user');
+    assert.ok(done.data.token.split('.').length === 3);
+
+    // 5) 新账号立即可用（/api/me + 建会话）
+    const me = await req('GET', '/api/me', undefined, done.data.token);
+    assert.equal(me.res.status, 200);
+    assert.equal(me.data.phone, phone);
+
+    // 6) 弱密码被拒
+    const dup = await req('POST', '/api/auth/register/verify-invite', { code: 'TEST-INVITE-2026' });
+    const send2 = await req('POST', '/api/auth/register/send-code', { email: 'weak@example.com', inviteToken: dup.data.inviteToken });
+    assert.equal(send2.res.status, 200);
+    const ver2 = await req('POST', '/api/auth/register/verify-email', { email: 'weak@example.com', code: readEmailCode('weak@example.com') });
+    const weak = await req('POST', '/api/auth/register/complete', { regToken: ver2.data.regToken, phone: '13900005678', password: 'abc12345' });
+    assert.equal(weak.res.status, 400);
+  });
+
+  it('已验证邮箱注册完成后，同邮箱再次注册被 409 拒绝；手机号冲突也被拒', async () => {
+    const email = 'dup@example.com';
+    const phone = '13900007777';
+
+    async function registerFlow(em, ph, pwd) {
+      const inv = await req('POST', '/api/auth/register/verify-invite', { code: 'TEST-INVITE-2026' });
+      await req('POST', '/api/auth/register/send-code', { email: em, inviteToken: inv.data.inviteToken });
+      const ver = await req('POST', '/api/auth/register/verify-email', { email: em, code: readEmailCode(em) });
+      return req('POST', '/api/auth/register/complete', { regToken: ver.data.regToken, phone: ph, password: pwd });
+    }
+
+    const first = await registerFlow(email, phone, 'Str0ng!pwd');
+    assert.equal(first.res.status, 200);
+
+    // 同邮箱再走一遍：send-code 阶段即被 409 拦截
+    const inv2 = await req('POST', '/api/auth/register/verify-invite', { code: 'TEST-INVITE-2026' });
+    const sendAgain = await req('POST', '/api/auth/register/send-code', { email, inviteToken: inv2.data.inviteToken });
+    assert.equal(sendAgain.res.status, 409);
+
+    // 同手机号不同邮箱：complete 阶段 409
+    const inv3 = await req('POST', '/api/auth/register/verify-invite', { code: 'TEST-INVITE-2026' });
+    const other = 'other@example.com';
+    await req('POST', '/api/auth/register/send-code', { email: other, inviteToken: inv3.data.inviteToken });
+    const ver3 = await req('POST', '/api/auth/register/verify-email', { email: other, code: readEmailCode(other) });
+    const samePhone = await req('POST', '/api/auth/register/complete', { regToken: ver3.data.regToken, phone, password: 'Str0ng!pwd' });
+    assert.equal(samePhone.res.status, 409);
+  });
+
+  it('自设密码账号不过期：登录成功且 pwdSource=self 生效', async () => {
+    const email = 'noexp@example.com';
+    const phone = '13900009999';
+    const inv = await req('POST', '/api/auth/register/verify-invite', { code: 'TEST-INVITE-2026' });
+    await req('POST', '/api/auth/register/send-code', { email, inviteToken: inv.data.inviteToken });
+    const ver = await req('POST', '/api/auth/register/verify-email', { email, code: readEmailCode(email) });
+    const done = await req('POST', '/api/auth/register/complete', { regToken: ver.data.regToken, phone, password: 'Str0ng!pwd' });
+    assert.equal(done.res.status, 200);
+
+    // users.json 中该账号 pwdSource=self、expiresAt 为远未来
+    const users = JSON.parse(fs.readFileSync(path.join(config.rootDir, 'data', 'users.json'), 'utf8'));
+    const rec = users.users.find((u) => u.phone === phone);
+    assert.ok(rec, '账号应已落盘');
+    assert.equal(rec.pwdSource, 'self');
+    assert.equal(rec.email, email);
+    assert.ok(rec.expiresAt > Date.now() + 365 * 24 * 3600 * 1000, '自设密码不应在一年内过期');
+
+    // 用自设密码走图形验证码登录也应成功
+    const { res } = await login(phone, 'Str0ng!pwd');
+    assert.equal(res.status, 200);
   });
 });

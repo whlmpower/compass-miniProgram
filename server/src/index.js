@@ -27,6 +27,8 @@ import {
   requireAuth,
   requireAdmin,
   signToken,
+  signScopedToken,
+  verifyScopedToken,
   getClientIp,
   setAuthCookie,
   clearAuthCookie,
@@ -40,8 +42,15 @@ import {
   listUsers,
   authenticate,
   changeAdminPassword,
+  getUserByEmail,
+  createSelfAccount,
+  validateSelfPassword,
 } from './users.js';
 import { check, record } from './ratelimit.js';
+import { sendVerificationCode } from './email.js';
+import { requestCode, verifyCode } from './emailcode.js';
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // ---------- 日志：同时落盘到 data/server.log，便于排查“卡住/无响应” ----------
 const LOG_PATH = path.join(config.dataDir, 'server.log');
@@ -281,6 +290,78 @@ app.get('/api/me', requireAuth, (req, res) => {
 app.post('/api/auth/logout', (req, res) => {
   clearAuthCookie(res);
   res.json({ ok: true });
+});
+
+// ---------- 邮箱自注册（邀请码门控） ----------
+// 1) 校验邀请码；通过则下发短期 invite token（5 分钟）。前端按钮解锁仅为 UX，服务端强制校验。
+app.post('/api/auth/register/verify-invite', (req, res) => {
+  const code = String((req.body && req.body.code) || '').trim();
+  if (!config.inviteCode) return res.status(403).json({ error: '注册通道未开放' });
+  const ip = getClientIp(req);
+  const lim = check('invite', ip); // 轻量防爆破
+  if (!lim.allowed) return res.status(429).json({ error: '尝试过多，请稍后再试' });
+  if (code !== config.inviteCode) {
+    record('invite', ip);
+    return res.status(401).json({ error: '邀请码不正确' });
+  }
+  const token = signScopedToken({ scope: 'invite' }, 300);
+  res.json({ ok: true, inviteToken: token });
+});
+
+// 2) 发送邮箱验证码：必须携带有效 invite token；邮箱不能已注册
+app.post('/api/auth/register/send-code', (req, res) => {
+  const email = String((req.body && req.body.email) || '').trim().toLowerCase();
+  const inviteToken = String((req.body && req.body.inviteToken) || '');
+  if (!EMAIL_RE.test(email)) return res.status(400).json({ error: '请输入正确的邮箱地址' });
+  try {
+    verifyScopedToken(inviteToken, 'invite');
+  } catch {
+    return res.status(401).json({ error: '邀请码已失效，请重新验证' });
+  }
+  if (getUserByEmail(email)) return res.status(409).json({ error: '该邮箱已注册' });
+  try {
+    const code = requestCode(email);
+    sendVerificationCode({ to: email, code }).catch((e) => console.error('[EMAIL] 发送失败:', e.message));
+  } catch (e) {
+    return res.status(429).json({ error: e.message });
+  }
+  res.json({ ok: true });
+});
+
+// 3) 校验邮箱验证码；通过则下发 reg-session token（15 分钟，携带已验证邮箱）
+app.post('/api/auth/register/verify-email', (req, res) => {
+  const email = String((req.body && req.body.email) || '').trim().toLowerCase();
+  const code = String((req.body && req.body.code) || '').trim();
+  if (!EMAIL_RE.test(email)) return res.status(400).json({ error: '请输入正确的邮箱地址' });
+  if (!/^\d{6}$/.test(code)) return res.status(400).json({ error: '请输入 6 位验证码' });
+  try {
+    verifyCode(email, code);
+  } catch (e) {
+    return res.status(400).json({ error: e.message });
+  }
+  const token = signScopedToken({ scope: 'reg', email }, 900);
+  res.json({ ok: true, regToken: token });
+});
+
+// 4) 绑定账号：凭 reg-session 设置手机号 + 自设密码，建号并登录
+app.post('/api/auth/register/complete', (req, res) => {
+  const regToken = String((req.body && req.body.regToken) || '');
+  const phone = String((req.body && req.body.phone) || '').trim();
+  const password = String((req.body && req.body.password) || '');
+  let payload;
+  try {
+    payload = verifyScopedToken(regToken, 'reg');
+  } catch {
+    return res.status(401).json({ error: '注册会话已失效，请重新开始' });
+  }
+  const v = validateSelfPassword(password);
+  if (!v.ok) return res.status(400).json({ error: v.error });
+  if (!/^1\d{10}$/.test(phone)) return res.status(400).json({ error: '请输入正确的 11 位手机号' });
+  const r = createSelfAccount(phone, payload.email, password);
+  if (!r.ok) return res.status(409).json({ error: r.error });
+  const token = signToken({ phone, role: 'user' });
+  setAuthCookie(res, token);
+  res.json({ token, role: 'user' });
 });
 
 // ---------- 管理后台（需 role=admin） ----------

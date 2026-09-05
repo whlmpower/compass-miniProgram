@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
-    "test": "LLM_MOCK=true ADMIN_PHONE=13800000001 ADMIN_PASSWORD=admin123456 JWT_SECRET=test node --test test/"
+    "test": "LLM_MOCK=true ADMIN_PHONE=13800000001 ADMIN_PASSWORD=admin123456 JWT_SECRET=test INVITE_CODE=TEST-INVITE-2026 node --test --test-concurrency=1 test/unit.test.js test/integration.test.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

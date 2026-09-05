@@ -61,14 +61,14 @@
     <p class="body r" style="--i:13">我们采集完成诊断所需的必要信息（手机号、对话内容），但坚持"用完即删"：对话与报告 24 小时自动清除，账号密码以哈希存储，不留存明文。<button class="link-btn" id="openPrivacy">查看隐私协议 →</button></p>
 
     <div class="sec-head r" style="--i:14"><span class="sec-num">05</span><span class="sec-line"></span><h2>怎么开始</h2></div>
-    <p class="body r" style="--i:15">职业罗盘为封闭分发，账号由管理员创建后线下发放。如果你还没有账号，请联系为你提供账号的管理员；登录后，即可开始一次诊断。</p>
+    <p class="body r" style="--i:15">职业罗盘为邀请制分发：账号可由管理员创建后线下发放，也可凭邀请码在登录页自助注册（邮箱验证 + 手机号绑定）。登录后，即可开始一次诊断。</p>
 
     <div class="r mt30" style="--i:16">
       <button class="btn block" id="startBtn">开始诊断</button>
     </div>
 
     <div class="footnote r" style="--i:17">
-      职业罗盘 · 职业自我认知诊断　|　封闭分发 · 账号由管理员发放
+      职业罗盘 · 职业自我认知诊断　|　邀请制 · 邀请码自助注册或管理员发放
     </div>
   </section>
 
@@ -114,7 +114,72 @@
 
       <button class="btn block r" style="--i:8" id="loginBtn" disabled>登 录</button>
 
-      <p class="auth-note r" style="--i:9">本产品为封闭分发模式，账号与密码由管理员统一创建并线下发放。<br/>同一手机号 24 小时内最多失败 5 次；同一网络 24 小时内最多失败 10 次。</p>
+      <p class="auth-note r" style="--i:9">账号与密码可由管理员统一创建并线下发放；持有邀请码也可在下方自助注册。<br/>同一手机号 24 小时内最多失败 5 次；同一网络 24 小时内最多失败 10 次。</p>
+      <a href="#" class="link-btn r" data-go="register" style="--i:10;display:block;text-align:center;margin-top:14px;">没有账号？立即注册 →</a>
+    </div>
+  </section>
+
+  <!-- ============ 视图 2b：注册（邀请码 + 邮箱验证码） ============ -->
+  <section class="view" id="view-register">
+    <div class="auth-wrap">
+      <div class="kicker r" style="--i:0">CREATE&nbsp;ACCOUNT</div>
+      <h1 class="r" style="--i:1">注册</h1>
+      <p class="sub r" style="--i:2">邀请码 + 邮箱验证码，验证后设置手机号与密码。</p>
+
+      <div class="field r" style="--i:3">
+        <label>邮箱</label>
+        <input id="rgEmail" type="email" inputmode="email" placeholder="you@example.com" autocomplete="username" />
+      </div>
+
+      <div class="field r" style="--i:4">
+        <label>邀请码</label>
+        <input id="rgInvite" type="text" maxlength="32" placeholder="向管理员获取的邀请码" autocomplete="off" />
+      </div>
+
+      <div class="field r" style="--i:5">
+        <label>邮箱验证码</label>
+        <div class="captcha-row">
+          <div class="field">
+            <input id="rgEmailCode" type="text" maxlength="6" inputmode="numeric" placeholder="6 位验证码" autocomplete="one-time-code" disabled />
+          </div>
+          <button type="button" class="btn ghost" id="btnSendRegCode" disabled>获取验证码</button>
+        </div>
+      </div>
+
+      <div class="err r" style="--i:6" id="rgErr"></div>
+
+      <button class="btn block r" style="--i:7" id="btnRegister" disabled>注 册</button>
+      <p class="auth-note r" style="--i:8">验证邀请码后才能获取邮箱验证码；验证码将发送至上方邮箱，10 分钟内有效。</p>
+      <a href="#" class="link-btn r" data-go="login" style="--i:9;display:block;text-align:center;margin-top:14px;">已有账号？去登录 →</a>
+    </div>
+  </section>
+
+  <!-- ============ 视图 2c：设置账号（手机号 + 密码） ============ -->
+  <section class="view" id="view-bind">
+    <div class="auth-wrap">
+      <div class="kicker r" style="--i:0">SET&nbsp;ACCOUNT</div>
+      <h1 class="r" style="--i:1">设置账号</h1>
+      <p class="sub r" style="--i:2">邮箱验证已通过，请设置登录手机号与密码。</p>
+
+      <div class="field r" style="--i:3">
+        <label>登录手机号</label>
+        <input id="bdPhone" type="tel" inputmode="numeric" maxlength="11" placeholder="11 位手机号（作为登录账号）" autocomplete="username" />
+      </div>
+
+      <div class="field r" style="--i:4">
+        <label>设置密码</label>
+        <input id="bdPwd" type="password" placeholder="≥8 位，含字母、数字和符号" autocomplete="new-password" />
+      </div>
+
+      <div class="field r" style="--i:5">
+        <label>确认密码</label>
+        <input id="bdPwd2" type="password" placeholder="再次输入密码" autocomplete="new-password" />
+      </div>
+
+      <div class="err r" style="--i:6" id="bdErr"></div>
+
+      <button class="btn block r" style="--i:7" id="btnBind">完 成</button>
+      <p class="auth-note r" style="--i:8">自设密码长期有效（≥8 位且需含字母、数字、符号），区别于管理员下发的 24 小时临时密码。</p>
     </div>
   </section>
 
@@ -238,13 +303,13 @@
     <h3>隐私协议</h3>
     <p style="color:var(--ink-3);font-size:12px;">最后更新：2026-08-23　·　封闭分发版</p>
     <h4>一、我们采集什么</h4>
-    <p>为完成诊断，我们收集：① 账号信息（手机号、密码哈希）；② 你在对话中主动输入的职业背景与想法；③ 诊断完成后生成的报告。</p>
+    <p>为完成诊断，我们收集：① 账号信息（手机号、邮箱、密码哈希）；② 你在对话中主动输入的职业背景与想法；③ 诊断完成后生成的报告。</p>
     <h4>二、我们怎么用</h4>
     <p>仅用于驱动本次诊断对话与生成报告。我们不出售、不共享任何个人数据。</p>
     <h4>三、我们怎么保护</h4>
     <p>密码以哈希形式存储，服务端不留存明文。对话与报告存放于服务端，<strong style="color:var(--indigo)">自生成之时起 24 小时后自动删除</strong>。</p>
     <h4>四、账号有效期</h4>
-    <p>用户密码在登录成功后 24 小时自动失效；管理员账号长期有效。登录失败受滑动窗口限流保护。</p>
+    <p>管理员下发的临时密码在登录成功后 24 小时自动失效；自助注册的自设密码与管理员账号长期有效。邮箱仅用于注册验证。登录失败受滑动窗口限流保护。</p>
     <h4>五、你的权利</h4>
     <p>你可随时要求删除本账号相关数据。本产品不含任何形式的广告，亦不接入广告 SDK，故不涉及广告数据采集。</p>
   </div>
@@ -277,6 +342,6 @@
 <script src="/assets/vendor/marked.min.js"></script>
 <script src="/assets/vendor/purify.min.js"></script>
 <script type="module" src="/assets/js/api.js"></script>
-<script type="module" src="/assets/js/app.js?v=2"></script>
+<script type="module" src="/assets/js/app.js?v=3"></script>
 </body>
 </html>

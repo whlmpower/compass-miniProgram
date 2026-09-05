@@ -63,6 +63,22 @@ export function verifyToken(token) {
   return payload;
 }
 
+// ---------- 作用域短期令牌（邀请码令牌 / 注册会话令牌） ----------
+// 与登录 JWT 共用同一 HMAC 体系，但 payload 可携带自定义字段，并由 scope 隔离用途。
+export function signScopedToken(payload, ttlSeconds) {
+  const header = { alg: 'HS256', typ: 'JWT' };
+  const now = Math.floor(Date.now() / 1000);
+  const full = { ...payload, iat: now, exp: now + ttlSeconds };
+  const signingInput = `${b64url(header)}.${b64url(full)}`;
+  return `${signingInput}.${hmac(signingInput)}`;
+}
+
+export function verifyScopedToken(token, scope) {
+  const payload = verifyToken(token); // 校验签名与过期
+  if (payload.scope !== scope) throw new Error('scope mismatch');
+  return payload;
+}
+
 // ---------- Cookie（httpOnly，承载 JWT，防 XSS 盗取） ----------
 const COOKIE_NAME = 'hcc_token';
 
