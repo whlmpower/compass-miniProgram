@@ -319,32 +319,64 @@ async function sendMessage() {
   ti.className = 'msg ai';
   ti.innerHTML = '<div class="av">罗</div><div class="bubble typing">思考中…</div>';
   $('msgs').appendChild(ti);
+  const bubble = ti.querySelector('.bubble');
 
-  let res, data;
+  // 流式增量渲染（P1）：流中用纯文本，避免半截 Markdown 语法（如未闭合的 **）闪烁；
+  // 结束后再整体 renderMarkdown 定稿。刷新做节流，避免每个 token 都跑 marked + DOMPurify 造成卡顿。
+  let acc = '';
+  let lastRenderAt = 0;
+  const RENDER_THROTTLE_MS = 100;
+  const renderPartial = (force) => {
+    const now = Date.now();
+    if (!force && now - lastRenderAt < RENDER_THROTTLE_MS) return;
+    lastRenderAt = now;
+    bubble.classList.remove('typing');
+    bubble.textContent = acc;
+    window.scrollTo(0, document.body.scrollHeight);
+  };
+
+  let result;
   try {
-    ({ res, data } = await api.post(`/api/session/${state.sessionId}/message`, { content: text }));
+    result = await api.postStream(
+      `/api/session/${state.sessionId}/message/stream`,
+      { content: text },
+      {
+        onDelta: (t) => {
+          acc += t;
+          renderPartial(false);
+        },
+      }
+    );
   } catch (err) {
-    // 超时 / 无法连接服务：移除“思考中”气泡，明确提示，避免无限转圈
-    ti.remove();
-    alert(err && err.message ? err.message : '发送失败，请稍后重试');
-    return;
-  }
-  ti.remove();
-  if (!res.ok) {
-    if (res.status === 401) {
+    if (err && err.status === 401) {
+      ti.remove();
       api.clear();
       updateNav();
       go('login');
       return;
     }
-    alert(data?.error || '发送失败');
+    // 中断时保留已收到的部分内容，避免出现「消息凭空消失」
+    if (acc) {
+      renderPartial(true);
+      bubble.innerHTML = renderMarkdown(acc);
+      state.messages.push({ role: 'assistant', content: acc });
+      alert('响应中断，刷新页面可获取完整回复。');
+    } else {
+      ti.remove();
+      alert(err && err.message ? err.message : '发送失败，请稍后重试');
+    }
     return;
   }
-  state.messages.push({ role: 'assistant', content: data.reply });
-  appendMsgEl('ai', data.reply);
+
+  const reply = result.reply || acc;
+  state.messages.push({ role: 'assistant', content: reply });
+  bubble.classList.remove('typing');
+  bubble.innerHTML = renderMarkdown(reply); // 定稿：完整 Markdown 渲染
+  window.scrollTo(0, document.body.scrollHeight);
+
   if (state.meta && state.meta.status === 'reported') {
-    state.meta.postReportTurnsLeft = data.postReportTurnsLeft;
-    if (data.conversationReady) state.conversationReady = true;
+    state.meta.postReportTurnsLeft = result.postReportTurnsLeft;
+    if (result.conversationReady) state.conversationReady = true;
     renderChatPhase();
   }
 }
@@ -353,28 +385,57 @@ $('genReportBtn').addEventListener('click', generateReport);
 async function generateReport() {
   const btn = $('genReportBtn');
   btn.disabled = true;
-  let res, data;
+  const btnText = btn.textContent;
+  btn.textContent = '生成中…';
+
+  // 报告输出最长，流式期间在对话流里展示字数进度，避免长时间无反馈（P1）
+  const ti = document.createElement('div');
+  ti.className = 'msg ai';
+  ti.innerHTML = '<div class="av">罗</div><div class="bubble typing">正在生成诊断报告…</div>';
+  $('msgs').appendChild(ti);
+  const bubble = ti.querySelector('.bubble');
+
+  let acc = '';
+  let lastRenderAt = 0;
+  const RENDER_THROTTLE_MS = 400; // 报告很长，节流间隔放宽
+
+  let result;
   try {
-    ({ res, data } = await api.post(`/api/session/${state.sessionId}/report`, {}));
+    result = await api.postStream(
+      `/api/session/${state.sessionId}/report/stream`,
+      {},
+      {
+        onDelta: (t) => {
+          acc += t;
+          const now = Date.now();
+          if (now - lastRenderAt < RENDER_THROTTLE_MS) return;
+          lastRenderAt = now;
+          bubble.classList.remove('typing');
+          bubble.textContent = `正在生成诊断报告…（已生成 ${acc.length} 字）`;
+          window.scrollTo(0, document.body.scrollHeight);
+        },
+      }
+    );
   } catch (err) {
     btn.disabled = false;
+    btn.textContent = btnText;
+    ti.remove();
     alert(err && err.message ? err.message : '报告生成失败，请稍后重试');
     return;
   }
-  if (!res.ok) {
-    alert(data?.error || '报告生成失败');
-    btn.disabled = false;
-    return;
-  }
+  ti.remove();
+
   state.reportReady = true;
-  state.reportHtml = data.reportHtml || ''; // 保存报告正文，供报告页直接渲染
+  state.reportHtml = result.reportHtml || ''; // 保存报告正文，供报告页直接渲染
   state.conversationReady = false;
   state.meta = await getMeta();
   // 报告生成后，后端会在对话流追加追问；把追问消息也展示出来
-  if (data.followup) {
-    state.messages.push({ role: 'assistant', content: data.followup });
-    appendMsgEl('ai', data.followup);
+  if (result.followup) {
+    state.messages.push({ role: 'assistant', content: result.followup });
+    appendMsgEl('ai', result.followup);
   }
+  btn.disabled = false;
+  btn.textContent = btnText;
   await loadReport();
   go('report');
 }

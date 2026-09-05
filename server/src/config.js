@@ -21,6 +21,13 @@ export const config = {
   llmTemperature: Number(process.env.LLM_TEMPERATURE || 0.8),
   // 仅在显式设置 LLM_MOCK=true 时启用演示兜底；默认走真实大模型（对话无须 mock）
   llmMock: process.env.LLM_MOCK === 'true',
+  // 流式输出开关：true=边生成边返回（首字延迟低）；false=降级为一次性返回。
+  // 两者对前端协议完全一致（均为 SSE 帧），线上出问题设 LLM_STREAM=false 即可秒级回滚，前端零改动。
+  llmStream: process.env.LLM_STREAM !== 'false',
+  // 对话阶段是否裁掉「评分层」提示词（scoring-rubrics.md + weights.md，约 8.3k 字符 / 16%）。
+  // 这两个文件按 system.md 的约定只在「需要评分时 / 综合诊断时」使用，对话阶段用不到。
+  // 设为 false 可回滚到全量注入。
+  trimChatPrompt: process.env.TRIM_CHAT_PROMPT !== 'false',
 
   // 业务规则
   maxInputChars: Number(process.env.MAX_INPUT_CHARS || 1000),

@@ -4,8 +4,14 @@ import path from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import { config, isMock } from './config.js';
-import { buildSystemPrompt, buildReportInstruction, buildGreeting, listReferencers } from './skillLoader.js';
-import { chat, mockReport } from './llm.js';
+import {
+  buildSystemPrompt,
+  buildReportInstruction,
+  buildGreeting,
+  listReferencers,
+  systemPromptStats,
+} from './skillLoader.js';
+import { chat, chatStream, mockReport } from './llm.js';
 import { renderReportHtml } from './report.js';
 import { renderConversationHtml, buildConversationFileName } from './conversation.js';
 import {
@@ -112,7 +118,30 @@ app.use(express.static(path.join(config.rootDir, '..', 'web')));
 })();
 
 initAdmin();
-const sysPrompt = buildSystemPrompt();
+// 全量提示词：仅「报告生成」阶段使用（需要评分锚点与权重矩阵）
+const sysPrompt = buildSystemPrompt({ phase: 'full' });
+// 对话阶段提示词：裁掉评分层（scoring-rubrics + weights），降低每轮预填 token（P3）
+const chatSysPrompt = buildSystemPrompt({ phase: 'chat' });
+{
+  const st = systemPromptStats();
+  const cut = st.full ? (((st.full - st.chat) / st.full) * 100).toFixed(1) : '0';
+  console.log(`[prompt] 字符数 chat=${st.chat} full=${st.full} 对话阶段削减=${cut}%`);
+}
+
+// ---------- SSE 流式响应（P1 主线 A） ----------
+// X-Accel-Buffering: no 用于禁用 Nginx 缓冲。注意：生产 Nginx 侧还需配合
+//   proxy_buffering off;  proxy_cache off;  chunked_transfer_encoding on;
+// 否则流式仍会被缓冲成「一次性返回」，首字延迟优势全部失效。
+function sseInit(res) {
+  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders(); // 立即下发响应头，让前端 fetch 马上拿到 body 可读
+}
+function sseSend(res, obj) {
+  res.write(`data: ${JSON.stringify(obj)}\n\n`);
+}
 
 function publicConfig() {
   return {
@@ -365,6 +394,7 @@ app.post('/api/session/:id/message', requireAuth, async (req, res) => {
     return res.status(400).json({ error: `单轮输入不能超过 ${config.maxInputChars} 字` });
   }
 
+  const tStart = Date.now();
   try {
     addMessage(s, 'user', content);
 
@@ -380,7 +410,7 @@ app.post('/api/session/:id/message', requireAuth, async (req, res) => {
         s.status === 'reported' && s.report
           ? `以下是已生成的报告全文，用户可能就报告内容追问：\n${s.report.markdown}`
           : '';
-      reply = await chat(sysPrompt, s.messages, { extraSystem });
+      reply = await chat(chatSysPrompt, s.messages, { extraSystem });
     }
     addMessage(s, 'assistant', reply);
 
@@ -394,8 +424,101 @@ app.post('/api/session/:id/message', requireAuth, async (req, res) => {
       conversationJustReady,
       postReportTurnsLeft: Math.max(0, config.postReportTurns - s.postReportTurns),
     });
+    console.log(
+      `[chat] sid=${s.id.slice(0, 8)} turns=${s.messages.length} promptChars=${chatSysPrompt.length} totalMs=${Date.now() - tStart} chars=${(reply || '').length}`
+    );
   } catch (e) {
+    console.error(
+      `[chat] 失败 sid=${s.id.slice(0, 8)} totalMs=${Date.now() - tStart} err=${e?.message || e}`
+    );
     res.status(502).json({ error: `模型调用失败：${e.message || e}` });
+  }
+});
+
+// 流式对话（P1 主线 A）：边生成边返回，首字延迟从 30–90s 降至 1–3s。
+// 协议：SSE 帧，delta=增量文本 / done=完成并携带元数据 / error=失败。
+// 服务端始终以自身状态为准落库：即便客户端中途断开，用户刷新后仍可恢复完整回复。
+app.post('/api/session/:id/message/stream', requireAuth, async (req, res) => {
+  const s = getSession(req.params.id);
+  if (!s) return res.status(404).json({ error: '会话不存在' });
+  if (!assertOwner(req, s, res)) return;
+
+  if (s.status === 'reported' && s.postReportTurns >= config.postReportTurns) {
+    return res.status(403).json({ error: '报告后的追问轮次已用完，对话已结束' });
+  }
+
+  const content = (req.body?.content || '').trim();
+  if (!content) return res.status(400).json({ error: '请输入内容' });
+  if (content.length > config.maxInputChars) {
+    return res.status(400).json({ error: `单轮输入不能超过 ${config.maxInputChars} 字` });
+  }
+
+  const t0 = Date.now();
+  const sid = s.id.slice(0, 8);
+  let firstTokenMs = -1; // -1 表示未经过 LLM（走了关键词兜底）
+
+  try {
+    addMessage(s, 'user', content);
+
+    const intent = resolvePostReportReply(s, content);
+    let reply;
+    let conversationJustReady = false;
+
+    if (intent) {
+      // 关键词兜底：不调 LLM，整段一次性下发
+      reply = intent.reply;
+      conversationJustReady = intent.justReady;
+      firstTokenMs = Date.now() - t0;
+      sseInit(res);
+      sseSend(res, { type: 'delta', text: reply });
+    } else {
+      const extraSystem =
+        s.status === 'reported' && s.report
+          ? `以下是已生成的报告全文，用户可能就报告内容追问：\n${s.report.markdown}`
+          : '';
+      sseInit(res);
+      reply = await chatStream(chatSysPrompt, s.messages, {
+        extraSystem,
+        onDelta: (text) => {
+          if (!text) return;
+          if (firstTokenMs < 0) firstTokenMs = Date.now() - t0;
+          sseSend(res, { type: 'delta', text });
+        },
+      });
+    }
+
+    addMessage(s, 'assistant', reply);
+
+    if (s.status === 'reported') {
+      s.postReportTurns += 1;
+      persist(s);
+    }
+
+    sseSend(res, {
+      type: 'done',
+      reply,
+      conversationReady: !!s.conversationReady,
+      conversationJustReady,
+      postReportTurnsLeft: Math.max(0, config.postReportTurns - s.postReportTurns),
+    });
+    res.end();
+
+    console.log(
+      `[chat-stream] sid=${sid} turns=${s.messages.length} promptChars=${chatSysPrompt.length} firstTokenMs=${firstTokenMs} totalMs=${Date.now() - t0} chars=${(reply || '').length}`
+    );
+  } catch (e) {
+    console.error(`[chat-stream] 失败 sid=${sid} totalMs=${Date.now() - t0} err=${e?.message || e}`);
+    if (res.headersSent) {
+      // 流已开启，不能再改状态码，只能下发 error 帧
+      sseSend(res, { type: 'error', message: `模型调用失败：${e.message || e}` });
+      try {
+        res.end();
+      } catch {
+        /* 客户端已断开，忽略 */
+      }
+    } else {
+      res.status(502).json({ error: `模型调用失败：${e.message || e}` });
+    }
   }
 });
 
@@ -407,6 +530,7 @@ app.post('/api/session/:id/report', requireAuth, async (req, res) => {
     return res.status(400).json({ error: '报告已生成，不能重复生成' });
   }
 
+  const tStart = Date.now();
   try {
     let markdown;
     if (isMock()) {
@@ -420,8 +544,83 @@ app.post('/api/session/:id/report', requireAuth, async (req, res) => {
     // 报告生成后，AI 在对话框内追加追问：是否需要整理对话为 HTML 下载
     addMessage(s, 'assistant', CONVERSATION_FOLLOWUP);
     res.json({ reportHtml: html, reportMarkdown: markdown, followup: CONVERSATION_FOLLOWUP });
+    console.log(
+      `[report] sid=${s.id.slice(0, 8)} promptChars=${sysPrompt.length} totalMs=${Date.now() - tStart} chars=${(markdown || '').length}`
+    );
   } catch (e) {
+    console.error(
+      `[report] 失败 sid=${s.id.slice(0, 8)} totalMs=${Date.now() - tStart} err=${e?.message || e}`
+    );
     res.status(502).json({ error: `报告生成失败：${e.message || e}` });
+  }
+});
+
+// 流式报告（P1）：报告输出最长，流式收益最大
+app.post('/api/session/:id/report/stream', requireAuth, async (req, res) => {
+  const s = getSession(req.params.id);
+  if (!s) return res.status(404).json({ error: '会话不存在' });
+  if (!assertOwner(req, s, res)) return;
+  if (s.status !== 'collecting') {
+    return res.status(400).json({ error: '报告已生成，不能重复生成' });
+  }
+
+  const t0 = Date.now();
+  const sid = s.id.slice(0, 8);
+  let firstTokenMs = -1;
+
+  try {
+    sseInit(res);
+    let markdown;
+
+    if (isMock()) {
+      markdown = mockReport();
+      // mock 模式同样逐段下发，便于本地验证前端增量渲染
+      const step = 120;
+      for (let i = 0; i < markdown.length; i += step) {
+        if (firstTokenMs < 0) firstTokenMs = Date.now() - t0;
+        sseSend(res, { type: 'delta', text: markdown.slice(i, i + step) });
+        await new Promise((r) => setTimeout(r, 20));
+      }
+    } else {
+      const instruction = buildReportInstruction(s.referencer);
+      markdown = await chatStream(sysPrompt, s.messages, {
+        extraSystem: instruction,
+        temperature: 0.6,
+        onDelta: (text) => {
+          if (!text) return;
+          if (firstTokenMs < 0) firstTokenMs = Date.now() - t0;
+          sseSend(res, { type: 'delta', text });
+        },
+      });
+    }
+
+    const html = renderReportHtml(markdown);
+    setReport(s, markdown, html); // 持久化报告正文 HTML，供刷新恢复后报告页直接渲染
+    addMessage(s, 'assistant', CONVERSATION_FOLLOWUP);
+
+    sseSend(res, {
+      type: 'done',
+      reportHtml: html,
+      reportMarkdown: markdown,
+      followup: CONVERSATION_FOLLOWUP,
+    });
+    res.end();
+
+    console.log(
+      `[report-stream] sid=${sid} promptChars=${sysPrompt.length} firstTokenMs=${firstTokenMs} totalMs=${Date.now() - t0} chars=${(markdown || '').length}`
+    );
+  } catch (e) {
+    console.error(`[report-stream] 失败 sid=${sid} totalMs=${Date.now() - t0} err=${e?.message || e}`);
+    if (res.headersSent) {
+      sseSend(res, { type: 'error', message: `报告生成失败：${e.message || e}` });
+      try {
+        res.end();
+      } catch {
+        /* 客户端已断开，忽略 */
+      }
+    } else {
+      res.status(502).json({ error: `报告生成失败：${e.message || e}` });
+    }
   }
 });
 

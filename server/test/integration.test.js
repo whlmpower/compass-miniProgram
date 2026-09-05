@@ -235,11 +235,82 @@ describe('诊断会话流程', () => {
     assert.equal(r3.status, 200);
     assert.ok(d3.reportHtml);
 
-    // 下载报告（raw 模式：自行读取 body）
-    const { res: r4 } = await req('GET', `/api/session/${sid}/report/download`, undefined, token, true);
+    // 回复「需要」触发对话整理 HTML 生成（下载接口依赖此步骤）
+    // 注：旧路由 /report/download 已由 /conversation/download 取代（对话整理 HTML）
+    const { res: r5 } = await req('POST', `/api/session/${sid}/message`, { content: '需要' }, token);
+    assert.equal(r5.status, 200);
+
+    // 下载对话整理 HTML（raw 模式：自行读取 body）
+    const { res: r4 } = await req('GET', `/api/session/${sid}/conversation/download`, undefined, token, true);
     assert.equal(r4.status, 200);
     const html = await r4.text();
     assert.ok(html.includes('<html') || html.includes('<!DOCTYPE'));
+  });
+
+  it('流式对话接口返回 SSE 帧，增量可拼接为完整回复', async () => {
+    const { password } = await createTestUser('13900000011');
+    const token = await userLogin('13900000011', password);
+
+    const { data: d1 } = await req('POST', '/api/session', {}, token);
+    const sid = d1.sessionId;
+
+    const res = await fetch(`${baseUrl}/api/session/${sid}/message/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ content: '我在考虑要不要换工作。' }),
+    });
+    assert.equal(res.status, 200);
+    assert.ok(
+      (res.headers.get('content-type') || '').includes('text/event-stream'),
+      '响应应为 SSE 流'
+    );
+
+    const deltas = [];
+    let done = null;
+    // 一次性读取全部内容后按 SSE 帧解析（mock 模式输出很短，不影响帧结构验证）
+    for (const frame of (await res.text()).split('\n\n')) {
+      const line = frame.trim();
+      if (!line.startsWith('data:')) continue;
+      const obj = JSON.parse(line.slice(5).trim());
+      if (obj.type === 'delta') deltas.push(obj.text);
+      else if (obj.type === 'done') done = obj;
+      else if (obj.type === 'error') assert.fail(`流返回错误：${obj.message}`);
+    }
+    assert.ok(deltas.length > 0, '应至少收到一段增量文本');
+    assert.ok(done, '应收到 done 帧');
+    assert.ok(done.reply && done.reply.length > 0);
+    assert.equal(deltas.join(''), done.reply, '增量拼接后应与 done.reply 完全一致');
+    assert.equal(typeof done.postReportTurnsLeft, 'number');
+  });
+
+  it('流式报告接口返回 SSE 帧并产出报告 HTML', async () => {
+    const { password } = await createTestUser('13900000012');
+    const token = await userLogin('13900000012', password);
+
+    const { data: d1 } = await req('POST', '/api/session', {}, token);
+    const sid = d1.sessionId;
+    await req('POST', `/api/session/${sid}/message`, { content: '我在外企做了五年技术。' }, token);
+
+    const res = await fetch(`${baseUrl}/api/session/${sid}/report/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({}),
+    });
+    assert.equal(res.status, 200);
+
+    let deltaCount = 0;
+    let done = null;
+    for (const frame of (await res.text()).split('\n\n')) {
+      const line = frame.trim();
+      if (!line.startsWith('data:')) continue;
+      const obj = JSON.parse(line.slice(5).trim());
+      if (obj.type === 'delta') deltaCount += 1;
+      else if (obj.type === 'done') done = obj;
+      else if (obj.type === 'error') assert.fail(`流返回错误：${obj.message}`);
+    }
+    assert.ok(deltaCount > 0, '应至少收到一段增量文本');
+    assert.ok(done && done.reportHtml, 'done 帧应携带 reportHtml');
+    assert.ok(done.followup, 'done 帧应携带追问话术');
   });
 
   it('未登录用户不能创建会话', async () => {

@@ -35,17 +35,44 @@ const FRAMEWORK_FILES = [
   'frameworks/weights.md',
 ];
 
-export function buildSystemPrompt() {
+// 仅「报告/评分阶段」才需要的框架文件。对话阶段注入它们纯属浪费预填 token。
+// 依据 prompts/system.md 第 313–323 行已定义的按需加载索引表：
+//   scoring-rubrics.md → 「需要评分时」；weights.md → 「综合诊断时」
+const SCORING_ONLY_FILES = new Set([
+  'frameworks/scoring-rubrics.md',
+  'frameworks/weights.md',
+]);
+
+// 按 phase 缓存：避免每轮对话都重复读取并拼接十几个文件，引入新的 IO 开销
+const sysPromptCache = new Map();
+
+// phase: 'chat' = 对话阶段（裁掉评分层）；'full' = 全量（报告生成时使用）
+// 不传参默认 'full'，兼容既有调用方。
+export function buildSystemPrompt({ phase = 'full' } = {}) {
+  if (sysPromptCache.has(phase)) return sysPromptCache.get(phase);
+
+  const trim = phase === 'chat' && config.trimChatPrompt;
   const parts = [];
   for (const f of CORE_PROMPT_FILES) {
     const c = read(path.join(SKILL, f));
     if (c) parts.push(`\n\n# 文件: ${f}\n${c}`);
   }
   for (const f of FRAMEWORK_FILES) {
+    if (trim && SCORING_ONLY_FILES.has(f)) continue;
     const c = read(path.join(SKILL, f));
     if (c) parts.push(`\n\n# 框架文件: ${f}\n${c}`);
   }
-  return parts.join('\n');
+  const out = parts.join('\n');
+  sysPromptCache.set(phase, out);
+  return out;
+}
+
+// 供埋点/排查：返回各 phase 的提示词字符数
+export function systemPromptStats() {
+  return {
+    chat: buildSystemPrompt({ phase: 'chat' }).length,
+    full: buildSystemPrompt({ phase: 'full' }).length,
+  };
 }
 
 const REFERENCERS = [

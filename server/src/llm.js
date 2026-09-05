@@ -9,6 +9,113 @@ export async function chat(
   return openaiChat(systemPrompt, history, temperature, extraSystem);
 }
 
+// ---------- 流式对话（P1 主线 A） ----------
+// 逐段回调 onDelta(text)。降级设计：
+//   - LLM_MOCK=true  → 用 mock 文本模拟分块输出
+//   - LLM_STREAM=false → 内部走一次性 chat()，把整段作为单次 delta 回调
+// 两种情况对上层（SSE 路由）协议完全一致，因此线上回滚只需改环境变量，前端零改动。
+export async function chatStream(
+  systemPrompt,
+  history,
+  { temperature = config.llmTemperature, extraSystem = '', onDelta } = {}
+) {
+  const emit = typeof onDelta === 'function' ? onDelta : () => {};
+
+  if (isMock()) {
+    const text = mockChat(history);
+    await mockStreamEmit(text, emit);
+    return text;
+  }
+  if (!config.llmStream) {
+    const text = await openaiChat(systemPrompt, history, temperature, extraSystem);
+    if (text) emit(text);
+    return text;
+  }
+  return openaiChatStream(systemPrompt, history, temperature, extraSystem, emit);
+}
+
+async function openaiChatStream(systemPrompt, history, temperature, extraSystem, emit) {
+  if (!config.llmApiKey) {
+    throw new Error('未配置 LLM_API_KEY，且未开启 LLM_MOCK，无法调用真实大模型');
+  }
+  const sysContent = extraSystem ? `${systemPrompt}\n\n${extraSystem}` : systemPrompt;
+  const resp = await fetch(`${config.llmBaseUrl}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${config.llmApiKey}`,
+    },
+    body: JSON.stringify({
+      model: config.llmModel,
+      temperature,
+      stream: true,
+      messages: [{ role: 'system', content: sysContent }, ...history],
+    }),
+  });
+  if (!resp.ok || !resp.body) {
+    const t = await resp.text().catch(() => '');
+    throw new Error(`LLM API error ${resp.status}: ${t}`);
+  }
+
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder('utf-8');
+  let buf = '';
+  let acc = '';
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      // SSE 帧以空行分隔；保留末尾不完整的半帧到下一轮
+      let idx;
+      while ((idx = buf.indexOf('\n\n')) !== -1) {
+        const frame = buf.slice(0, idx);
+        buf = buf.slice(idx + 2);
+        const chunk = parseSseFrame(frame);
+        if (chunk) {
+          acc += chunk;
+          emit(chunk);
+        }
+      }
+    }
+  } finally {
+    try {
+      await reader.cancel();
+    } catch {
+      /* 已读完或已关闭，忽略 */
+    }
+  }
+  return acc;
+}
+
+// 解析单个 SSE 帧，提取本次增量文本（兼容多 data: 行与 [DONE] 哨兵）
+function parseSseFrame(frame) {
+  let out = '';
+  for (const raw of frame.split('\n')) {
+    const line = raw.trim();
+    if (!line.startsWith('data:')) continue;
+    const payload = line.slice(5).trim();
+    if (!payload || payload === '[DONE]') continue;
+    try {
+      const json = JSON.parse(payload);
+      const delta = json?.choices?.[0]?.delta?.content;
+      if (typeof delta === 'string' && delta) out += delta;
+    } catch {
+      /* 忽略无法解析的帧，不中断整体流 */
+    }
+  }
+  return out;
+}
+
+// Mock 流式：按固定块大小 + 间隔吐字，便于本地验证前端增量渲染
+async function mockStreamEmit(text, emit) {
+  const size = 24;
+  for (let i = 0; i < text.length; i += size) {
+    emit(text.slice(i, i + size));
+    await new Promise((r) => setTimeout(r, 30));
+  }
+}
+
 async function openaiChat(systemPrompt, history, temperature, extraSystem) {
   if (!config.llmApiKey) {
     throw new Error('未配置 LLM_API_KEY，且未开启 LLM_MOCK，无法调用真实大模型');
